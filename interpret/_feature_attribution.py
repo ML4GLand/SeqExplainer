@@ -568,3 +568,18 @@ def aggregate_importances_sdata(
 
 def tfmodisco():
     pass
+
+
+def plot_attribution_map(saliency_df, ax=None, figsize=(20,1)):
+  """plot an attribution map using logomaker"""
+
+  logomaker.Logo(saliency_df, figsize=figsize, ax=ax)
+  if ax is None:
+    ax = plt.gca()
+  ax.spines['right'].set_visible(False)
+  ax.spines['top'].set_visible(False)
+  ax.yaxis.set_ticks_position('none')
+  ax.xaxis.set_ticks_position('none')
+  plt.xticks([])
+  plt.yticks([])
+

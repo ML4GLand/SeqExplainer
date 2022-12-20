@@ -328,3 +328,66 @@ def generate_pfms_sdata(
     )
     sdata.uns[f"{prefix}{key_name}{suffix}"] = filter_pfms
     return sdata if copy else None
+
+#https://github.com/MedChaabane/deepRAM/blob/master/extract_motifs.py
+def plot_target_corr(filter_outs, seq_targets, filter_names, target_names, out_pdf, seq_op='mean'):
+    num_seqs = filter_outs.shape[0]
+    num_targets = len(target_names)
+
+    if seq_op == 'mean':
+        filter_outs_seq = filter_outs.mean(axis=2)
+    else:
+        filter_outs_seq = filter_outs.max(axis=2)
+
+    # std is sequence by filter.
+    filter_seqs_std = filter_outs_seq.std(axis=0)
+    filter_outs_seq = filter_outs_seq[:,filter_seqs_std > 0]
+    filter_names_live = filter_names[filter_seqs_std > 0]
+
+    filter_target_cors = np.zeros((len(filter_names_live),num_targets))
+    for fi in range(len(filter_names_live)):
+        for ti in range(num_targets):
+            cor, p = spearmanr(filter_outs_seq[:,fi], seq_targets[:num_seqs,ti])
+            filter_target_cors[fi,ti] = cor
+
+    cor_df = pd.DataFrame(filter_target_cors, index=filter_names_live, columns=target_names)
+
+    sns.set(font_scale=0.3)
+    plt.figure()
+    sns.clustermap(cor_df, cmap='BrBG', center=0, figsize=(8,10))
+    plt.savefig(out_pdf)
+    plt.close()
+
+#https://github.com/p-koo/tfomics/blob/master/tfomics/impress.py
+def plot_filters(W, fig, num_cols=8, alphabet='ACGT', names=None, fontsize=12):
+  """plot 1st layer convolutional filters"""
+
+  num_filter, filter_len, A = W.shape
+  num_rows = np.ceil(num_filter/num_cols).astype(int)
+
+  fig.subplots_adjust(hspace=0.2, wspace=0.2)
+  for n, w in enumerate(W):
+    ax = fig.add_subplot(num_rows,num_cols,n+1)
+    
+    # Calculate sequence logo heights -- information
+    I = np.log2(4) + np.sum(w * np.log2(w+1e-7), axis=1, keepdims=True)
+    logo = I*w
+
+    # Create DataFrame for logomaker
+    counts_df = pd.DataFrame(data=0.0, columns=list(alphabet), index=list(range(filter_len)))
+    for a in range(A):
+      for l in range(filter_len):
+        counts_df.iloc[l,a] = logo[l,a]
+
+    logomaker.Logo(counts_df, ax=ax)
+    ax = plt.gca()
+    ax.set_ylim(0,2)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.yaxis.set_ticks_position('none')
+    ax.xaxis.set_ticks_position('none')
+    plt.xticks([])
+    plt.yticks([])
+    if names is not None:
+      plt.ylabel(names[n], fontsize=fontsize)
+
