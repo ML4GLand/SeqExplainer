@@ -1,20 +1,21 @@
-from tqdm.auto import tqdm
-import pandas as pd
-import numpy as np
 import torch
-from ._utils import (
+import numpy as np
+import pandas as pd
+from tqdm.auto import tqdm
+from ._preprocess_utils import (
     _tokenize,
     _sequencize,
     _token2one_hot,
     _one_hot2token,
     _pad_sequences,
 )  # modified concise
-from ._utils import (
+from ._preprocess_utils import (
     _string_to_char_array,
     _one_hot_to_tokens,
     _char_array_to_string,
     _tokens_to_one_hot,
 )  # dinuc_shuffle
+from eugene import settings as settings
 
 
 # Vocabularies
@@ -27,21 +28,13 @@ COMPLEMENT_RNA = {"A": "U", "C": "G", "G": "C", "U": "A"}
 def remove_only_N_seqs(seqs):
     return [seq for seq in seqs if not all([x == "N" for x in seq])]  
 
-def remove_only_N_seqs_sdata(sdata, copy=False):
-    sdata = sdata.copy() if copy else sdata
-    N_only_mask = np.array([all([x == "N" for x in seq]) for seq in sdata.seqs])
-    sdata = sdata[~N_only_mask]
-    return sdata
-
 def sanitize_seq(seq):
     """Capitalizes and removes whitespace for single seq."""
     return seq.strip().upper()
 
-
 def sanitize_seqs(seqs):
     """Capitalizes and removes whitespace for a set of sequences."""
     return np.array([seq.strip().upper() for seq in seqs])
-
 
 def ascii_encode_seq(seq, pad=0):
     """
@@ -49,11 +42,8 @@ def ascii_encode_seq(seq, pad=0):
     """
     encode_seq = np.array([ord(letter) for letter in seq], dtype=int)
     if pad > 0:
-        encode_seq = np.pad(
-            encode_seq, pad_width=(0, pad), mode="constant", constant_values=36
-        )
+        encode_seq = np.pad(encode_seq, pad_width=(0, pad), mode="constant", constant_values=36)
     return encode_seq
-
 
 def ascii_encode_seqs(seqs, pad=0):
     """
@@ -64,20 +54,15 @@ def ascii_encode_seqs(seqs, pad=0):
     )
     return encode_seqs
 
-
 def ascii_decode_seq(seq):
     """
     Converts a NumPy array of byte-long ASCII codes to a string of characters.
     """
     return "".join([chr(int(letter)) for letter in seq]).replace("$", "")
 
-
 def ascii_decode_seqs(seqs):
     """Convert a set of one-hot encoded arrays back to strings"""
-    return np.array(
-        [ascii_decode_seq(seq) for seq in seqs], dtype=object
-    )
-
+    return np.array([ascii_decode_seq(seq) for seq in seqs], dtype=object)
 
 def reverse_complement_seq(seq, vocab="DNA"):
     """Reverse complement a single sequence."""
@@ -90,7 +75,6 @@ def reverse_complement_seq(seq, vocab="DNA"):
             raise ValueError("Invalid vocab, only DNA or RNA are currently supported")
     elif isinstance(seq, np.ndarray):
         return torch.from_numpy(np.flip(seq, axis=(0, 1)).copy()).numpy()
-
 
 def reverse_complement_seqs(seqs, vocab="DNA", verbose=True):
     """Reverse complement set of sequences."""
@@ -109,14 +93,28 @@ def reverse_complement_seqs(seqs, vocab="DNA", verbose=True):
     elif isinstance(seqs[0], np.ndarray):
         return torch.from_numpy(np.flip(seqs, axis=(1, 2)).copy()).numpy()
 
+def gc_content_seq(seq, ohe=False):
+    if ohe:
+        return np.sum(seq[1:3, :])/seq.shape[1]
+    else:
+        return (seq.count("G") + seq.count("C"))/len(seq)
+    
+def gc_content_seqs(seqs, ohe=False):
+    if ohe:
+        seq_len = seqs[0].shape[1]
+        return np.sum(seqs[:, 1:3, :], axis=1).sum(axis=1)/seq_len
+    else:
+        return np.array([gc_content_seq(seq) for seq in seqs])
 
-def ohe_seq(seq, vocab="DNA", neutral_vocab="N", fill_value=0):
+def ohe_seq(
+    seq, 
+    vocab="DNA", 
+    neutral_vocab="N", 
+    fill_value=0
+):
     """Convert a sequence into one-hot-encoded array."""
     seq = seq.strip().upper()
-    return _token2one_hot(
-        _tokenize(seq, vocab, neutral_vocab), vocab, fill_value=fill_value
-    )
-
+    return _token2one_hot(_tokenize(seq, vocab, neutral_vocab), vocab, fill_value=fill_value)
 
 def ohe_seqs(
     seqs,
@@ -157,7 +155,6 @@ def ohe_seqs(
     else:
         return np.array(arr_list, dtype=object)
 
-
 def decode_seq(arr, vocab="DNA", neutral_value=-1, neutral_char="N"):
     """Convert a single one-hot encoded array back to string"""
     if isinstance(arr, torch.Tensor):
@@ -168,7 +165,6 @@ def decode_seq(arr, vocab="DNA", neutral_value=-1, neutral_char="N"):
         neutral_value=neutral_value,
         neutral_char=neutral_char,
     )
-
 
 def decode_seqs(arr, vocab="DNA", neutral_char="N", neutral_value=-1, verbose=True):
     """Convert a one-hot encoded array back to set of sequences"""
@@ -188,8 +184,11 @@ def decode_seqs(arr, vocab="DNA", neutral_char="N", neutral_value=-1, verbose=Tr
     ]
     return np.array(arr_list)
 
-
-def dinuc_shuffle_seq(seq, num_shufs=None, rng=None):
+def dinuc_shuffle_seq(
+    seq, 
+    num_shufs=None, 
+    rng=None
+):
     """
     Creates shuffles of the given sequence, in which dinucleotide frequencies
     are preserved.
@@ -223,11 +222,11 @@ def dinuc_shuffle_seq(seq, num_shufs=None, rng=None):
         arr = _string_to_char_array(seq)
     elif type(seq) is np.ndarray and len(seq.shape) == 2:
         seq_len, one_hot_dim = seq.shape
-        arr = _one_hot_to_tokens(seq)
+        arr = _one_hot2token(seq)
     else:
         raise ValueError("Expected string or one-hot encoded array")
     if not rng:
-        rng = np.random.RandomState()
+        rng = np.random.RandomState(seed=settings.seed)
 
     # Get the set of all characters, and a mapping of which positions have which
     # characters; use `tokens`, which are integer representations of the
@@ -270,9 +269,8 @@ def dinuc_shuffle_seq(seq, num_shufs=None, rng=None):
         if type(seq) is str or type(seq) is np.str_:
             all_results.append(_char_array_to_string(chars[result]))
         else:
-            all_results[i] = _tokens_to_one_hot(chars[result], one_hot_dim)
+            all_results[i] = _token2one_hot(chars[result])
     return all_results if num_shufs else all_results[0]
-
 
 def dinuc_shuffle_seqs(seqs, num_shufs=None, rng=None):
     """
@@ -299,7 +297,7 @@ def dinuc_shuffle_seqs(seqs, num_shufs=None, rng=None):
     This is taken from DeepLIFT
     """
     if not rng:
-        rng = np.random.RandomState()
+        rng = np.random.RandomState(seed=settings.seed)
 
     if type(seqs) is str or type(seqs) is np.str_:
         seqs = [seqs]
@@ -308,7 +306,6 @@ def dinuc_shuffle_seqs(seqs, num_shufs=None, rng=None):
     for i in range(len(seqs)):
         all_results.append(dinuc_shuffle_seq(seqs[i], num_shufs=num_shufs, rng=rng))
     return np.array(all_results)
-
 
 def perturb_seq(X_0, vocab_len=4):
     """
@@ -345,7 +342,6 @@ def perturb_seq(X_0, vocab_len=4):
         X[i, (idx + k) % n_choices, np.arange(seq_len)] = 1
 
     return X.numpy()
-
 
 def perturb_seqs(X_0, vocab_len=4):
     """
@@ -403,7 +399,6 @@ def perturb_seqs(X_0, vocab_len=4):
 
     return X
 
-
 def feature_implant_seq(
     seq, feature, position, vocab="DNA", encoding="str", onehot=False
 ):
@@ -422,7 +417,6 @@ def feature_implant_seq(
         )
     else:
         raise ValueError("Encoding not recognized.")
-
 
 def feature_implant_across_seq(seq, feature, **kwargs):
     """
@@ -444,18 +438,3 @@ def feature_implant_across_seq(seq, feature, **kwargs):
         seq_implanted = feature_implant_seq(seq, feature, pos, **kwargs)
         implanted_seqs.append(seq_implanted)
     return np.array(implanted_seqs)
-
-
-def gc_content_seq(seq, ohe=False):
-    if ohe:
-        return np.sum(seq[1:3, :])/seq.shape[1]
-    else:
-        return (seq.count("G") + seq.count("C"))/len(seq)
-    
-    
-def gc_content_seqs(seqs, ohe=False):
-    if ohe:
-        seq_len = seqs[0].shape[1]
-        return np.sum(seqs[:, 1:3, :], axis=1).sum(axis=1)/seq_len
-    else:
-        return np.array([gc_content_seq(seq) for seq in seqs])

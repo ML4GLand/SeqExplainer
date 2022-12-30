@@ -1,7 +1,39 @@
+import logging
 import torch
+import torch.nn as nn
 import numpy as np
 from yuzu.utils import perturbations
+from typing import Dict, Iterable, Callable
 
+class FeatureExtractor(nn.Module):
+    def __init__(self, model: nn.Module, keyWord: str):
+        super().__init__()
+        self.model = model
+        layers = sorted([k for k in dict([*model.named_modules()]) if keyWord in k])
+        logging.info("{} model layers identified with key word {}".format(len(layers), keyWord))
+        self.features = {layer: torch.empty(0) for layer in layers}
+        self.handles = dict() 
+
+        for layerID in layers:
+            layer = dict([*self.model.named_modules()])[layerID]
+            handle = layer.register_forward_hook(self.SaveOutputHook(layerID))
+            self.handles[layerID] = handle
+            
+    def SaveOutputHook(self, layerID: str) -> Callable:
+        def fn(laya, weValueYourInput, output): #laya = layer (e.g. Linear(...); weValueYourInput = input tensor
+            self.features[layerID] = output
+        return fn
+
+    def forward(self, x, **kwargs) -> Dict[str, torch.Tensor]:
+        preds = self.model(x, **kwargs)
+        return self.features, self.handles, preds
+
+def _model_to_device(model, device="cpu"):
+    """
+    """
+    model.eval()
+    model.to(device)
+    return model
 
 def _k_largest_index_argsort(
     a: np.ndarray, 
@@ -43,7 +75,6 @@ def _k_largest_index_argsort(
     """
     idx = np.argsort(a.ravel())[:-k-1:-1]
     return np.column_stack(np.unravel_index(idx, a.shape))
-
 
 @torch.inference_mode()
 def _naive_ism(
