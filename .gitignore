@@ -1,4 +1,7 @@
 models/
+notebooks/implement/modisco_out/
+data/deAlmeida22/
+data/jores21/
 *eugene_data/
 *eugene_logs/
 *.DS_Store

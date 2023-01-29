@@ -1,110 +1,26 @@
 import torch
-import numpy as np
-from typing import Union, Callable
-from tqdm.auto import tqdm
-from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
-from ._references import _get_reference
-from ._interpret_utils import _model_to_device, _naive_ism
-from eugene import settings as settings
+from torch.optim import Adam
 
-# In silico mutagenesis methods
-ISM_REGISTRY = {
-    "NaiveISM": _naive_ism,
-}
-
-def _ism_attributions(
-    model: torch.nn.Module, 
-    inputs: tuple, 
-    method: Union[str, Callable],
-    target: int = 0,
-    device: str = "cpu", 
-    **kwargs
-):
-    if isinstance(inputs, torch.Tensor):
-        inputs = inputs.detach().cpu().numpy()
-    if model.strand != "ss":
-        raise ValueError("ISM currrently only works for single strand models, but we are working on this!")
-    attrs = ISM_REGISTRY[method](
-        model=model,
-        X_0=inputs,  # Rename to inputs eventually
-        device=device,
-        **kwargs
-    )
-    return attrs
-
-# Captum methods
-CAPTUM_REGISTRY = {
-    "InputXGradient": InputXGradient,
-    "DeepLift": DeepLift,
-    "DeepLiftShap": DeepLiftShap,
-    "GradientShap": GradientShap,
-
-}
-
-def _captum_attributions(
-    model: torch.nn.Module,
-    inputs: tuple,
-    method: str,
-    target: int = 0,
-    **kwargs
-):
-    """
-    """
-    if isinstance(inputs, np.ndarray):
-        inputs = torch.tensor(inputs)
-    attributor = CAPTUM_REGISTRY[method](model)
-    attrs = attributor.attribute(inputs=inputs, target=target, **kwargs)
-    return attrs
-
-ATTRIBUTIONS_REGISTRY = {
-    "NaiveISM": _ism_attributions,
-    "InputXGradient": _captum_attributions,
-    "DeepLift": _captum_attributions,
-    "GradientShap": _captum_attributions,
-    "DeepLiftShap": _captum_attributions,
-}
-
-def attribute(
-    model,
-    inputs: torch.Tensor,
-    method: Union[str, Callable],
-    target: int = 0,
-    device: str = "cpu",
-    **kwargs
-):
-
-    # Set device
-    device = "cuda" if settings.gpus > 0 else "cpu" if device is None else device
-
-    # Put model on device
-    model = _model_to_device(model, device)
-
-    # Put inputs on device
-    if isinstance(inputs, tuple):
-        inputs = tuple([i.requires_grad_().to(device) for i in inputs])
-    else:
-        inputs = inputs.requires_grad_().to(device)
-
-    # Check kwargs for reference
-    if "reference_type" in kwargs:
-        ref_type = kwargs.pop("reference_type")
-        kwargs["baselines"] = _get_reference(inputs, ref_type, device)
-
-    #print(inputs[0].requires_grad)#, kwargs["baselines"][0].requires_grad)
-    #print(inputs.shape, kwargs["baselines"].shape, kwargs["additional_forward_args"].shape)
-    #print(kwargs.keys(), method, target, model)
-    # Get attributions
-    attr = ATTRIBUTIONS_REGISTRY[method](
-        model=model,
-        inputs=inputs,
-        method=method,
-        target=target,
-        **kwargs
-    )
-
-    # Return attributions
-    return attr
-
+def generate_maximally_activating_input(model, neuron_index, input_size, lr=0.1, steps=100):
+    # Create a random input tensor with the specified size
+    input_tensor = torch.randn(input_size)
+    input_tensor.requiresGrad = True
+    
+    # Define the optimizer
+    optimizer = Adam([input_tensor], lr=lr)
+    
+    # Perform gradient ascent
+    for _ in range(steps):
+        optimizer.zero_grad()
+        output = model(input_tensor)
+        # get the output of the intermediate layer
+        intermediate_output = model.intermediate_layer(input_tensor)
+        # select the output of the neuron of interest
+        neuron_output = intermediate_output[0, neuron_index]
+        neuron_output.backward()
+        optimizer.step()
+    
+    return input_tensor
 
 def feature_attribution_sdata(
     model: torch.nn.Module,  # need to enforce this is a SequenceModel
