@@ -5,12 +5,7 @@ import pandas as pd
 from modiscolite.tfmodisco import TFMoDISco
 from modiscolite.io import save_hdf5
 from modiscolite.report import (
-    read_meme, 
-    compute_per_position_ic, 
-    write_meme_file, 
-    fetch_tomtom_matches, 
-    run_tomtom, 
-    make_logo, 
+    run_tomtom,
     create_modisco_logos, 
     report_motifs
 )
