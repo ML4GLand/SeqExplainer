@@ -1,6 +1,9 @@
 # This file contains a function library for taking in a baseline set of sequences and generating
 # different null hypothesis sets for use in the SeqExplainer workflow.
 import numpy as np
+from ._seq import dinuc_shuffle_seqs
+from seqexplainer._seq import dinuc_shuffle_seqs
+
 
 def generate_profile_set(base_sequence, num_sample):
     """
@@ -9,9 +12,9 @@ def generate_profile_set(base_sequence, num_sample):
     :param num_sample: sample size
     :return: background set of onehot sequences
     """
-    seq_model = np.mean(np.squeeze(X_np), axis=0)
+    seq_model = np.mean(np.squeeze(base_sequence), axis=0)
     seq_model /= np.sum(seq_model, axis=0, keepdims=True)
-    num_sample = 10
+
     # sequence length
     L = seq_model.shape[1]
 
@@ -31,7 +34,6 @@ def generate_profile_set(base_sequence, num_sample):
 
     return x_null
 
-
 def generate_shuffled_set(base_sequence, num_sample):
     """
     Funciton for creating a shuffled set of sequences based on an input set
@@ -47,7 +49,6 @@ def generate_shuffled_set(base_sequence, num_sample):
     [np.random.shuffle(x) for x in x_null]
     return x_null
 
-
 def generate_dinucleotide_shuffled_set(base_sequence, num_sample):
     """
     Function for dinuc shuffling provided sequences
@@ -60,26 +61,17 @@ def generate_dinucleotide_shuffled_set(base_sequence, num_sample):
     x_null = base_sequence[shuffle[:num_sample]]
 
     # shuffle dinucleotides
-    for j, seq in enumerate(x_null):
-        x_null[j] = dinuc_shuffle(seq)
+    x_null = dinuc_shuffle_seqs(x_null)
     return x_null
 
-def generate_null_sequence_set(null_model, base_sequence, num_sample=1000, seed=None):
+def generate_subset_set(base_sequence, num_sample):
     """
-    make a subset for background based on null model type
-    :param null_model: startegy for generating the background sequences
-    :param base_sequence: sequences to use for generating backgrounds
+    Function for creating a subset of sequences
+    :param base_sequence: set of sequences
     :param num_sample: sample size
-    :param seed: seed for random choice for null model none
-    :return: None
+    :return: background set of onehot sequences
     """
-    if null_model == 'random':    return generate_shuffled_set(base_sequence, num_sample)  # shuffle
-    if null_model == 'profile':   return generate_profile_set(base_sequence, num_sample)  # match nucl profile
-    if null_model == 'dinuc':     return generate_dinucleotide_shuffled_set(base_sequence, num_sample)  # dinuc shuffle
-    if null_model == 'none':  # no shuffle, just subset
-        if seed:
-            np.random.seed(seed)
-        idx = np.random.choice(base_sequence.shape[0], num_sample)
-        return base_sequence[idx]
-    else:
-        print ('null_model name not recognized.')
+    # take a random subset of base_sequence
+    shuffle = np.random.permutation(len(base_sequence))
+    x_null = base_sequence[shuffle[:num_sample]]
+    return x_null

@@ -10,3 +10,9 @@ from ._attribution_analysis import (
     modisco_load_h5,
     modisco_extract
 )
+from ._null_models import (
+    generate_profile_set,
+    generate_shuffled_set,
+    generate_dinucleotide_shuffled_set,
+    generate_subset_set
+)

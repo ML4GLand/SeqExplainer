@@ -104,3 +104,27 @@ def compute_per_position_ic(ppm, background, pseudocount):
     ic = ((np.log((ppm+pseudocount)/(1 + pseudocount*alphabet_len))/np.log(2))
           *ppm - (np.log(background)*background/np.log(2))[None,:])
     return np.sum(ic,axis=1)
+
+
+def convert_tfr_to_np(tfr_dataset):
+    """
+    convert tfr dataset to a list of numpy arrays
+    :param tfr_dataset: tfr dataset format
+    :return:
+    """
+    all_data = [[] for i in range(len(next(iter(tfr_dataset))))]
+    for i, (data) in enumerate(tfr_dataset):
+        for j, data_type in enumerate(data):
+            all_data[j].append(data_type)
+    return [np.concatenate(d) for d in all_data]
+
+
+def batch_np(whole_dataset, batch_size):
+    """
+    batch a np array for passing to a model without running out of memory
+    :param whole_dataset: np array dataset
+    :param batch_size: batch size
+    :return: generator of np batches
+    """
+    for i in range(0, whole_dataset.shape[0], batch_size):
+        yield whole_dataset[i:i + batch_size]

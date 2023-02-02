@@ -5,14 +5,15 @@ import logomaker
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from ._utils import compute_per_position_ic, _make_dirs
+from ._seq import nucleotide_content_seqs
 
 
-def plot_saliency_map(explains, sort):
+def plot_saliency_map(explains, sort, width=13, height_per_explain=1):
     """
     Plot the saliency maps for each sequence
     """
-    num_plot = 10
-    fig = plt.figure(figsize=(num_plot,13))
+    num_plot = len(explains)
+    fig = plt.figure(figsize=(width, num_plot*height_per_explain))
     for i in range(num_plot):
         ax = plt.subplot(num_plot, 1, i+1)
         saliency_df = pd.DataFrame(explains[i].transpose([1,0]), columns=["A","C","G","T"])
@@ -111,3 +112,15 @@ def umap_plot(umap_data, umap1=0, umap2=1, color="b", loadings=None, labels=None
     plt.ylabel("UMAP{}".format(2))
     plt.show()
     return ax
+
+def plot_nucleotide_freq(seqs, title="", ax=None, figsize=(10, 5)):
+    import matplotlib.pyplot as plt
+    if ax is None:
+        _, ax = plt.subplots(figsize=figsize)
+    ax.set_title(title)
+    nuc_across_seq = nucleotide_content_seqs(seqs, axis=0, ohe=True, normalize=True)
+    ax.plot(nuc_across_seq.T)
+    ax.legend(["A", "C", "G", "T"])
+    ax.set_xlabel("Position")
+    ax.set_ylabel("Frequency")
+    

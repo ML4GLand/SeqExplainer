@@ -3,12 +3,13 @@ import numpy as np
 from tqdm.auto import tqdm
 np.random.seed(13)
 
-# Vocabularies
+# VOCABS -- for DNA/RNA only for now
 DNA = ["A", "C", "G", "T"]
 RNA = ["A", "C", "G", "U"]
 COMPLEMENT_DNA = {"A": "T", "C": "G", "G": "C", "T": "A"}
 COMPLEMENT_RNA = {"A": "U", "C": "G", "G": "C", "U": "A"}
 
+# HELPERS - mostly for encoding/decoding
 def _get_vocab(vocab):
     if vocab == "DNA":
         return DNA
@@ -229,6 +230,7 @@ def _pad_sequences(
     ]
     return padded_seqs
 
+# HELPERS -- misc
 def _is_overlapping(a, b):
     """Returns True if two intervals overlap"""
     if b[0] >= a[0] and b[0] <= a[1]:
@@ -276,7 +278,7 @@ def _collapse_pos(positions):
     ranges.append((start, positions[-1] + 2))
     return ranges
 
-# next 4 are from dinuc shuffle in DeepLift package
+# HELPERS -- next 4 are from dinuc shuffle in DeepLift package
 def _string_to_char_array(seq):
     """
     Converts an ASCII string to a NumPy array of byte-long ASCII codes.
@@ -312,6 +314,7 @@ def _tokens_to_one_hot(tokens, one_hot_dim):
     identity = np.identity(one_hot_dim + 1)[:, :-1]  # Last row is all 0s
     return identity[tokens]
 
+# CLEANERS
 def remove_only_N_seqs(seqs):
     return [seq for seq in seqs if not all([x == "N" for x in seq])]  
 
@@ -323,6 +326,7 @@ def sanitize_seqs(seqs):
     """Capitalizes and removes whitespace for a set of sequences."""
     return np.array([seq.strip().upper() for seq in seqs])
 
+# ENCODERS and DECODERS
 def ascii_encode_seq(seq, pad=0):
     """
     Converts a string of characters to a NumPy array of byte-long ASCII codes.
@@ -379,19 +383,6 @@ def reverse_complement_seqs(seqs, vocab="DNA", verbose=True):
         )
     elif isinstance(seqs[0], np.ndarray):
         return torch.from_numpy(np.flip(seqs, axis=(1, 2)).copy()).numpy()
-
-def gc_content_seq(seq, ohe=False):
-    if ohe:
-        return np.sum(seq[1:3, :])/seq.shape[1]
-    else:
-        return (seq.count("G") + seq.count("C"))/len(seq)
-    
-def gc_content_seqs(seqs, ohe=False):
-    if ohe:
-        seq_len = seqs[0].shape[1]
-        return np.sum(seqs[:, 1:3, :], axis=1).sum(axis=1)/seq_len
-    else:
-        return np.array([gc_content_seq(seq) for seq in seqs])
 
 def ohe_seq(
     seq, 
@@ -471,13 +462,23 @@ def decode_seqs(arr, vocab="DNA", neutral_char="N", neutral_value=-1, verbose=Tr
     ]
     return np.array(arr_list)
 
-def shuffle_seq():
-    #TODO
-    pass
+# MODIFIERS -- shuffling
+def shuffle_seq(seq,  one_hot=False, seed=None):
+    np.random.seed(seed)
+    
+    if one_hot:
+        seq = np.argmax(seq, axis=-1)
+        
+    shuffled_idx = np.random.permutation(len(seq))
+    shuffled_seq = np.array([seq[i] for i in shuffled_idx], dtype=seq.dtype)
+    
+    if one_hot:
+        shuffled_seq = np.eye(4)[shuffled_seq]
+        
+    return shuffled_seq
 
-def shuffle_seqs():
-    #TODO
-    pass
+def shuffle_seqs(seqs, one_hot=False, seed=None):
+    return np.array([shuffle_seq(seq, one_hot=one_hot, seed=seed) for seq in seqs])
 
 def dinuc_shuffle_seq(
     seq, 
@@ -602,96 +603,39 @@ def dinuc_shuffle_seqs(seqs, num_shufs=None, rng=None):
         all_results.append(dinuc_shuffle_seq(seqs[i], num_shufs=num_shufs, rng=rng))
     return np.array(all_results)
 
-def perturb_seq(seq):
-    """Numpy version of perturbations"""
-    n_choices, seq_len = seq.shape
-    idxs = seq.argmax(axis=0)
-    n = seq_len * (n_choices - 1)
-    X = np.tile(seq, (n, 1))
-    X = X.reshape(n, n_choices, seq_len)
-    for k in range(1, n_choices):
-        i = np.arange(seq_len) * (n_choices - 1) + (k - 1)
-        X[i, idxs, np.arange(seq_len)] = 0
-        X[i, (idxs + k) % n_choices, np.arange(seq_len)] = 1
-    return X
-
-def perturb_seq_torch(seq):
-    """Torch version of perturbations"""
-    n_choices, seq_len = seq.shape
-    idxs = seq.argmax(axis=0)
-    n = seq_len * (n_choices - 1)
-    X = torch.tile(seq, (n, 1))
-    X = X.reshape(n, n_choices, seq_len)
-    for k in range(1, n_choices):
-        i = torch.arange(seq_len) * (n_choices - 1) + (k - 1)
-        X[i, idxs, torch.arange(seq_len)] = 0
-        X[i, (idxs + k) % n_choices, torch.arange(seq_len)] = 1
-    return X
-
-def perturb_seqs(seqs):
-    n_seqs, n_choices, seq_len = seqs.shape
-    idxs = seqs.argmax(axis=1)
-    n = seq_len * (n_choices - 1)
-    X = np.tile(seqs, (n, 1, 1))
-    X = X.reshape(n, n_seqs, n_choices, seq_len).transpose(1, 0, 2, 3)
-    for i in range(n_seqs):
-        for k in range(1, n_choices):
-            idx = np.arange(seq_len) * (n_choices - 1) + (k - 1)
-
-            X[i, idx, idxs[i], np.arange(seq_len)] = 0
-            X[i, idx, (idxs[i] + k) % n_choices, np.arange(seq_len)] = 1
-    return X
-
-def perturb_seqs_torch(seqs):
-    n_seqs, n_choices, seq_len = seqs.shape
-    idxs = seqs.argmax(axis=1)
-    n = seq_len * (n_choices - 1)
-    X = torch.tile(seqs, (n, 1, 1))
-    X = X.reshape(n, n_seqs, n_choices, seq_len).permute(1, 0, 2, 3)
-    for i in range(n_seqs):
-        for k in range(1, n_choices):
-            idx = torch.arange(seq_len) * (n_choices - 1) + (k - 1)
-
-            X[i, idx, idxs[i], torch.arange(seq_len)] = 0
-            X[i, idx, (idxs[i] + k) % n_choices, torch.arange(seq_len)] = 1
-    return X
-
-def feature_implant_seq(
-    seq, feature, position, vocab="DNA", encoding="str", onehot=False
-):
-    """
-    Insert a feature at a given position in a single sequence.
-    """
-    if encoding == "str":
-        return seq[:position] + feature + seq[position + len(feature) :]
-    elif encoding == "onehot":
-        if onehot:
-            feature = _token2one_hot(feature.argmax(axis=1), vocab=vocab, fill_value=0)
-        if feature.shape[0] != seq.shape[0]:
-            feature = feature.transpose()
-        return np.concatenate(
-            (seq[:, :position], feature, seq[:, position + feature.shape[-1] :]), axis=1
-        )
+# ANALYZERS -- for querying sequences
+def gc_content_seq(seq, ohe=True):
+    if ohe:
+        return np.sum(seq[1:3, :])/seq.shape[1]
     else:
-        raise ValueError("Encoding not recognized.")
+        return (seq.count("G") + seq.count("C"))/len(seq)
+    
+def gc_content_seqs(seqs, ohe=True):
+    if ohe:
+        seq_len = seqs[0].shape[1]
+        return np.sum(seqs[:, 1:3, :], axis=1).sum(axis=1)/seq_len
+    else:
+        return np.array([gc_content_seq(seq) for seq in seqs])
 
-def feature_implant_across_seq(seq, feature, **kwargs):
-    """
-    Insert a feature at every position for a single sequence.
-    """
-    if isinstance(seq, str):
-        assert isinstance(feature, str)
-        seq_len = len(seq)
-        feature_len = len(feature)
-    elif isinstance(seq, np.ndarray):
-        assert isinstance(feature, np.ndarray)
-        seq_len = seq.shape[-1]
-        if feature.shape[0] != seq.shape[0]:
-            feature_len = feature.shape[0]
+def nucleotide_content_seq(seq, ohe=True, normalize=True):
+    if ohe:
+        if normalize:
+            return np.sum(seq, axis=1)/seq.shape[1]
         else:
-            feature_len = feature.shape[-1]
-    implanted_seqs = []
-    for pos in range(seq_len - feature_len + 1):
-        seq_implanted = feature_implant_seq(seq, feature, pos, **kwargs)
-        implanted_seqs.append(seq_implanted)
-    return np.array(implanted_seqs)
+            return np.sum(seq, axis=1)
+    else:
+        if normalize:
+            return np.array([seq.count(nuc)/len(seq) for nuc in "ACGT"])
+        else:
+            return np.array([seq.count(nuc) for nuc in "ACGT"])
+            
+def nucleotide_content_seqs(seqs, axis=0, ohe=True, normalize=True):
+    if ohe:
+        if normalize:
+            return np.sum(seqs, axis=axis)/seqs.shape[0]
+        else:
+            return np.sum(seqs, axis=axis)
+    else:
+        print("Not implemented yet")
+                
+

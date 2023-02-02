@@ -4,7 +4,7 @@ from typing import Union, Callable
 from tqdm.auto import tqdm
 from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
 from ._references import _get_reference
-from ._seq import perturb_seq_torch
+from ._perturb import perturb_seq_torch
 from ._utils import _model_to_device
 from eugene import settings as settings
 
