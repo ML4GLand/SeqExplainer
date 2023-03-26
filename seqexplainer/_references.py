@@ -1,6 +1,6 @@
 import torch
 from typing import Union, Callable
-from ._seq import dinuc_shuffle_seqs
+from seqpro import dinuc_shuffle_seqs
 
 def zero_ref_inputs(inputs):
     """Return a Tensor of zeros with the same shape as inputs"""
@@ -68,7 +68,7 @@ REFERENCE_REGISTRY = {
     "profile": profile_ref_inputs,
 }
 
-def _get_reference(
+def get_reference(
     inputs: torch.Tensor,
     method: Union[str, Callable],
     device: str = "cpu"

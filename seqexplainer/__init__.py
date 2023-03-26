@@ -1,4 +1,11 @@
-from ._feature_attribution import attribute, attribute_on_batch
+from ._filter_viz import *
+from ._references import (
+    get_reference
+)
+from ._feature_attribution import (
+    attribute, 
+    attribute_on_batch
+)
 from ._attribution_analysis import (
     attribution_pca,
     attribution_umap,
@@ -31,4 +38,16 @@ from ._perturb import (
     find_patterns_seqs,
     occlude_patterns_seq,
     occlude_patterns_seqs,
+)
+
+from ._gia import (
+    gc_bias_gia,
+    positional_bias_gia,
+    flanking_patterns_gia,
+    pattern_interaction_gia,
+    pattern_cooperativity_gia,
+)
+
+from ._plot import (
+    plot_saliency_map
 )

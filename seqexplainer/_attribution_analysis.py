@@ -2,15 +2,12 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
-from modiscolite.tfmodisco import TFMoDISco
-from modiscolite.io import save_hdf5
-from modiscolite.report import (
-    run_tomtom,
-    create_modisco_logos, 
-    report_motifs
-)
 from ._tools import pca, umap
+from modiscolite.io import save_hdf5
+from modiscolite.tfmodisco import TFMoDISco
 from ._utils import _make_dirs, _path_to_image_html
+from modiscolite.report import run_tomtom, create_modisco_logos, report_motifs
+
 
 def _get_oned_contribs(
     one_hot,

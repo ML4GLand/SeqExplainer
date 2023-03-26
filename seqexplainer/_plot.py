@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import colors
-from ._seq import nucleotide_content_seqs
+from seqpro import nucleotide_content_seqs
 from ._utils import compute_per_position_ic, _make_dirs
 
 

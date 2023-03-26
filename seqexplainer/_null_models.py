@@ -1,5 +1,5 @@
 import numpy as np
-from gaston import dinuc_shuffle_seqs
+from seqpro import dinuc_shuffle_seqs
 
 
 def generate_profile_set(base_sequence, num_sample):

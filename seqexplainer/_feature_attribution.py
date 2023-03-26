@@ -3,7 +3,7 @@ import numpy as np
 from tqdm.auto import tqdm
 from typing import Union, Callable
 from ._utils import _model_to_device
-from ._references import _get_reference
+from ._references import get_reference 
 from ._perturb import perturb_seq_torch
 from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
 
@@ -107,7 +107,6 @@ def _captum_attributions(
     inputs: tuple,
     method: str,
     target: int = 0,
-    device: str = "cpu",
     **kwargs
 ):
     """
@@ -148,7 +147,7 @@ def attribute(
     # Check kwargs for reference
     if "reference_type" in kwargs:
         ref_type = kwargs.pop("reference_type")
-        kwargs["baselines"] = _get_reference(inputs, ref_type, device)
+        kwargs["baselines"] =  get_reference(inputs, ref_type, device)
 
     # Get attributions
     attr = ATTRIBUTIONS_REGISTRY[method](

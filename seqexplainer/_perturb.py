@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from gaston import _get_vocab, ohe_seq, decode_seq, decode_seqs, reverse_complement_seqs
+from seqpro import _get_vocab, ohe_seq, decode_seq, decode_seqs, reverse_complement_seqs
 
 def perturb_seq(seq):
     """Numpy version of perturbations"""
