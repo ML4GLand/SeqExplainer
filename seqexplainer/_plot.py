@@ -1,11 +1,11 @@
 import tfomics
+import logomaker
 import numpy as np
 import pandas as pd
-import logomaker
 import matplotlib.pyplot as plt
 from matplotlib import colors
-from ._utils import compute_per_position_ic, _make_dirs
 from ._seq import nucleotide_content_seqs
+from ._utils import compute_per_position_ic, _make_dirs
 
 
 def plot_saliency_map(explains, sort, width=13, height_per_explain=1):

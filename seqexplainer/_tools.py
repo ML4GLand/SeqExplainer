@@ -1,8 +1,8 @@
 import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 from umap import UMAP
 from ._utils import _create_unique_seq_names
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 
 def pca(mtx, n_comp=30, index_name='index', new_index=None):

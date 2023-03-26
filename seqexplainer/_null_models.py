@@ -1,8 +1,5 @@
-# This file contains a function library for taking in a baseline set of sequences and generating
-# different null hypothesis sets for use in the SeqExplainer workflow.
 import numpy as np
-from ._seq import dinuc_shuffle_seqs
-from seqexplainer._seq import dinuc_shuffle_seqs
+from gaston import dinuc_shuffle_seqs
 
 
 def generate_profile_set(base_sequence, num_sample):

@@ -1,7 +1,6 @@
-
 import torch
 import numpy as np
-from ._seq import _get_vocab, ohe_seq, decode_seq, decode_seqs, reverse_complement_seqs
+from gaston import _get_vocab, ohe_seq, decode_seq, decode_seqs, reverse_complement_seqs
 
 def perturb_seq(seq):
     """Numpy version of perturbations"""
@@ -66,30 +65,50 @@ def embed_pattern_seq(
     vocab="DNA",
 ):
     """
-    Insert a pattern at a given position in a single sequence.
+    Insert a pattern at a given position in a single sequence. 
+
+    Parameters
+    ----------
+    seq : str or np.ndarray
+        The sequence to embed the pattern in. Can by a single string or a one-hot encoded numpy array.
+    pattern : str or np.ndarray
+        The pattern to embed. Can by a single string or a one-hot encoded numpy array.
+    position : int
+        The position to embed the pattern at. One position only for this function!
+    ohe : bool, optional
+        Whether the input seq is one-hot encoded or not, by default True
+    pattern_encoding : str, optional
+        Whether the pattern is one-hot encoded or not, by default "str"
+
+    Returns
+    -------
+    np.ndarray
+        The original sequence with the pattern embedded at the given position.
     """
     # If the sequence is one-hot encoded
     if ohe:
+        embed_seq = seq.copy()
         # If the pattern is a string, we need to one-hot encode it
         if pattern_encoding == "str":
             pattern = ohe_seq(pattern, vocab=vocab)
         
         # If the pattern is one-hot encoded but has the wrong shape, we need to transpose it
-        if pattern.shape[0] != seq.shape[0]:
+        if pattern.shape[0] != embed_seq.shape[0]:
             pattern = pattern.transpose()
 
         # Insert the pattern and return
-        return np.concatenate((seq[:, :position], pattern, seq[:, position + pattern.shape[-1] :]), axis=1)
+        return np.concatenate((embed_seq[:, :position], pattern, embed_seq[:, position + pattern.shape[-1] :]), axis=1)
     
     # If the sequence is string encoded
     else:
+        embed_seq = seq + ""
         # If the pattern is one-hot encoded, we need to decode it
         if pattern_encoding == "ohe":
             if pattern.shape[0] != len(_get_vocab(vocab)):
                 pattern = pattern.transpose()
             pattern = decode_seq(pattern, vocab=vocab)
         
-        return seq[:position] + pattern + seq[position + len(pattern) :]
+        return embed_seq[:position] + pattern + embed_seq[position + len(pattern) :]
     
 def embed_pattern_seqs(
     seqs,
@@ -100,14 +119,49 @@ def embed_pattern_seqs(
     vocab="DNA",
 ):
     """
-    Insert a pattern at a given position in a batch of sequences.
+    Insert a single pattern at same or different positions in a batch of sequences.
+    If a single position is given, the pattern will be inserted at the same position in all sequences.
+    If a list of positions is given, the pattern will be inserted at the corresponding position in each sequence.
+
+    Parameters
+    ----------
+    seqs : list of str or np.ndarray
+        The sequences to embed the pattern in. Can by a list of strings or a numpy array of one-hot encoded sequences.
+    pattern : str or np.ndarray
+        The pattern to embed. Can by a single string or a one-hot encoded numpy array.
+    positions : int or list of int
+        The position to embed the pattern at. One position for all sequences or one position for each sequence.
+    ohe : bool, optional
+        Whether the input seqs are one-hot encoded or not, by default True
+    pattern_encoding : str, optional
+        Whether the pattern is one-hot encoded or not, by default "str"
+
+    Returns
+    -------
+    np.ndarray
+        The original sequences with the pattern embedded at the given positions.
     """
-    # make a copy of the sequences
-    embed_seqs = np.copy()
+    embed_seqs = seqs.copy()
+    
+    # If given a single position, use it for all sequences
     if isinstance(positions, int):
-        positions = [positions] * len(seqs)
-    for i, seq in enumerate(seqs):
-        embed_seqs[i] = embed_pattern_seq(seq, pattern, positions[i], ohe, pattern_encoding, vocab)
+        positions = [[positions]] * len(seqs)
+    
+    # If given a list of positions, use them for all sequences 
+    elif isinstance(positions, list):
+        positions = positions * len(seqs)
+    
+    # Else raise an error
+    elif len(positions) != len(seqs):
+        raise ValueError("The number of passed in positions must match the number of sequences.")
+    
+    positions = np.array(positions)
+    for i in range(len(positions)):
+        print(len(positions[i]))
+        for j in range(len(positions[i])):
+            if positions[i][j] < 0:
+                continue
+            embed_seqs[i] = embed_pattern_seq(seqs[i], pattern, positions[i][j], ohe, pattern_encoding, vocab)
     return embed_seqs
 
 def embed_patterns_seq(
@@ -120,10 +174,28 @@ def embed_patterns_seq(
 ):
     """
     Insert a batch of patterns at a batch of positions in a single sequence.
+
+    Parameters
+    ----------
+    seq : str or np.ndarray
+        The sequence to embed the patterns in. Can by a single string or a one-hot encoded numpy array.
+    patterns : list of str or np.ndarray
+        The patterns to embed. Can by a list of strings or a numpy array of one-hot encoded patterns.
+    positions : list of int
+        The positions to embed the patterns at. Must be one position for each pattern.
+    ohe : bool, optional
+        Whether the input seq is one-hot encoded or not, by default True
+    pattern_encoding : str, optional
+        Whether the patterns are one-hot encoded or not, by default "str"
+    
+    Returns
+    -------
+    np.ndarray
+        The original sequence with the patterns embedded at the given positions.
     """
     # make a copy of the sequences
-    if isinstance(positions, int):
-        positions = [positions] * len(patterns)
+    if len(patterns) != len(positions):
+        raise ValueError("The number of patterns and positions must be the same.")
     embed_seq = seq.copy()
     for i, pattern in enumerate(patterns):
         embed_seq = embed_pattern_seq(embed_seq, pattern, positions[i], ohe, pattern_encoding, vocab)
@@ -139,17 +211,62 @@ def embed_patterns_seqs(
 ):
     """
     Insert a batch of patterns at a batch of positions in a batch of sequences.
+    If you want to insert the patterns in the same position in all sequences, patterns should be a list 
+    that matches positions in length
+    If you want to insert the patterns in different positions in all sequences, patterns and positions 
+    should be list of lists (or 2D array). The length should match the number of sequences, and the width 
+    should match the number of patterns to insert in each sequence.
+    
+    Parameters
+    ----------
+    seqs : list of str or np.ndarray
+        A list of sequences to embed the patterns in.
+    patterns : list of str or np.ndarray
+        A list of patterns to embed in the sequences. The first dimension corresponds to the sequences, the second to the patterns.
+    positions : list of list of int
+        A list of lists of positions to embed the patterns at. The first dimension corresponds to the sequences, the second to the patterns.
+    ohe : bool, optional
+        Whether the sequences are one-hot encoded, by default True
+    pattern_encoding : str, optional
+        Whether the patterns are one-hot encoded or string encoded, by default "str"
+    vocab : str, optional
+        The vocabulary to use for one-hot encoding, by default "DNA"
     """
     # make a copy of the sequences
-    if isinstance(positions, int):
-        positions = [positions] * len(patterns)
     embed_seqs = seqs.copy()
-    for i, seq in enumerate(seqs):
-        for j, pattern in enumerate(patterns):
-            embed_seqs[i] = embed_pattern_seq(seq, pattern, positions[j], ohe, pattern_encoding, vocab)
+
+    # If the positions are a single list, it needs to match the number of patterns and be tiled across the sequences
+    if isinstance(positions[0], int):
+        if len(positions) == len(patterns) != len(seqs):
+            positions = [positions] * len(seqs)
+            patterns = [patterns] * len(seqs)
+        else:
+            raise ValueError("The number of positions must match the number of patterns if using same positions across sequences.")
+ 
+    # If positions are a list of lists, we need to check that dimensions match the number of sequences and patterns
+    elif isinstance(positions[0], list):
+        if len(positions) != len(seqs) or len(patterns) != len(seqs):
+            raise ValueError("The number of sequences must match the number of lists of positions.")
+        if len(positions[0]) != len(patterns[0]):
+            raise ValueError("The number of patterns must match the number of positions in each list of positions.")                
+
+    positions = np.array(positions)
+    patterns = np.array(patterns)
+    for i in range(len(positions)):
+        for j in range(len(positions[i])):
+            if positions[i][j] < 0:
+                continue
+            embed_seqs[i] = embed_pattern_seq(embed_seqs[i], patterns[i][j], positions[i][j], ohe, pattern_encoding, vocab)
     return embed_seqs
 
-def tile_pattern_seq(seq, pattern, starting_pos=0, step=1, vocab="DNA", **kwargs):
+def tile_pattern_seq(
+    seq, 
+    pattern, 
+    starting_pos=0, 
+    step=1, 
+    vocab="DNA", 
+    **kwargs
+):
     """
     Insert a pattern at every position for a single sequence.
     """
@@ -169,7 +286,30 @@ def tile_pattern_seq(seq, pattern, starting_pos=0, step=1, vocab="DNA", **kwargs
         implanted_seqs.append(seq_implanted)
     return np.array(implanted_seqs)
 
-def find_patterns_seq(seq, patterns, pattern_names=None, starting_pos=0, check_rev_comp=True):
+def tile_pattern_seqs(
+    seqs,
+    pattern,
+    starting_pos=0,
+    step=1,
+    vocab="DNA",
+    **kwargs
+):
+    """
+    Insert a pattern at every position for a batch of sequences.
+    """
+
+    implanted_seqs = []
+    for seq in seqs:
+        implanted_seqs.append(tile_pattern_seq(seq, pattern, starting_pos, step, vocab, **kwargs))
+    return np.array(implanted_seqs)
+        
+def find_patterns_seq(
+    seq, 
+    patterns, 
+    pattern_names=None, 
+    starting_pos=0, 
+    check_rev_comp=True
+):
     """Function to find patterns and annotate the position and orientation of patterns in sequences
     
     Users should be able to specify an exact pattern or pass in pattern to search for.
@@ -181,6 +321,9 @@ def find_patterns_seq(seq, patterns, pattern_names=None, starting_pos=0, check_r
     if isinstance(patterns, dict):
         pattern_names = list(patterns.keys())
         patterns = list(patterns.values())
+
+    if isinstance(patterns, str):
+        patterns = [patterns]
     
     if check_rev_comp:
         rev_patterns = list(reverse_complement_seqs(patterns, verbose=False))
@@ -210,10 +353,16 @@ def find_patterns_seq(seq, patterns, pattern_names=None, starting_pos=0, check_r
             if pattern in all_patterns:
                 pattern_hits_dict.setdefault(i, []).append(pattern_name_dict[pattern])
                 pattern_hits_dict.setdefault(i, []).append(pattern_orient_dict[pattern])
-
+                pattern_hits_dict.setdefault(i, []).append(pattern)
     return pattern_hits_dict
 
-def find_patterns_seqs(seqs, patterns, pattern_names=None, starting_pos=0, check_rev_comp=True):
+def find_patterns_seqs(
+    seqs, 
+    patterns, 
+    pattern_names=None, 
+    starting_pos=0, 
+    check_rev_comp=True
+):
     """Function to find patterns and annotate the position and orientation of patterns in sequences
     
     Users should be able to specify an exact pattern or pass in pattern to search for.
@@ -228,3 +377,68 @@ def find_patterns_seqs(seqs, patterns, pattern_names=None, starting_pos=0, check
         all_hits.append(hits)
     return all_hits
 
+def occlude_patterns_seq(
+    seq,
+    patterns,
+    occlusion_pattern=None,
+    starting_pos=0,
+    check_rev_comp=True,
+    max_occluded=None,
+    max_iters=1000,
+):
+    # make a copy of the sequence
+    embed_seq = seq.copy()
+    it = 0
+
+    #while there are still motif hits
+    hits = find_patterns_seq(seq, patterns, starting_pos=starting_pos, check_rev_comp=check_rev_comp)
+    while len(hits) > 0 and it < max_iters:
+        if max_occluded is None:
+            max_occluded = len(hits)
+        
+        # occlude motifs in seq
+        for pos, motif in hits.items():    
+            # Get random pattern of same size as pattern
+            if occlusion_pattern is None:
+                occlusion_pattern = ohe_seq("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
+            embed_seq = embed_pattern_seq(embed_seq, occlusion_pattern, pos, ohe=True, pattern_encoding="ohe")
+
+        # check if there are still motif hits
+        hits = find_patterns_seq(seq, patterns, starting_pos=starting_pos, check_rev_comp=check_rev_comp)
+        it += 1
+        return embed_seq
+
+def occlude_patterns_seqs(
+    seqs,
+    patterns,
+    occlusion_pattern=None,
+    starting_pos=0,
+    check_rev_comp=True,
+    max_occluded=None,
+    max_iters=1000,
+):
+    embed_seqs = seqs.copy()
+    it = 0
+    # find motifs in seq
+    hits = find_patterns_seqs(embed_seqs, patterns, starting_pos=starting_pos, check_rev_comp=check_rev_comp)
+    # get number of sum of total hits across all sequences
+    total_hits = 0
+    for hit in hits:
+        total_hits += len(hit)
+    while total_hits > 0 and it < max_iters:
+        if max_occluded is None:
+            max_occluded = len(hits)
+        
+        # occlude motifs in seq
+        for i, hit in enumerate(hits):
+            for pos, motif in hit.items():
+                # Get random pattern of same size as pattern
+                if occlusion_pattern is None:
+                    occlusion_pattern = ohe_seq("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
+                embed_seqs[i] = embed_pattern_seq(embed_seqs[i], occlusion_pattern, pos, ohe=True, pattern_encoding="ohe")
+        hits = find_patterns_seqs(embed_seqs, patterns, starting_pos=starting_pos, check_rev_comp=check_rev_comp)
+        total_hits = 0
+        for hit in hits:
+            total_hits += len(hit)
+        it += 1
+    return embed_seqs

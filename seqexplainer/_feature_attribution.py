@@ -1,12 +1,11 @@
 import torch
 import numpy as np
-from typing import Union, Callable
 from tqdm.auto import tqdm
-from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
+from typing import Union, Callable
+from ._utils import _model_to_device
 from ._references import _get_reference
 from ._perturb import perturb_seq_torch
-from ._utils import _model_to_device
-from eugene import settings as settings
+from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
 
 
 # Reference vs output difference methods
@@ -136,8 +135,6 @@ def attribute(
     device: str = "cpu",
     **kwargs
 ):
-    # Set device
-    device = "cuda" if settings.gpus > 0 else "cpu" if device is None else device
 
     # Put model on device
     model = _model_to_device(model, device)
@@ -178,9 +175,6 @@ def attribute_on_batch(
     # Disable cudnn for faster computations
     torch.backends.cudnn.enabled = False
 
-    # Set device
-    device = "cuda" if settings.gpus > 0 else "cpu" if device is None else device
-
     # Put model on device
     model = _model_to_device(model, device)
 
@@ -189,7 +183,7 @@ def attribute_on_batch(
     starts = np.arange(0, inputs.shape[0], batch_size)
 
     # Loop through batches and compute attributions
-    for i, start in tqdm(
+    for _, start in tqdm(
         enumerate(starts),
         total=len(starts),
         desc=f"Computing feature attributions on batches of size {batch_size}",
