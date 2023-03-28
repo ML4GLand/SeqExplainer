@@ -1,3 +1,5 @@
+import numpy as np
+
 def gc_bias_gia(
     model,
     null_sequences,

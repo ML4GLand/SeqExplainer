@@ -58,7 +58,6 @@ def profile_ref_inputs(inputs):
             refs[n, index, l] = 1 
     return refs
     
-
 REFERENCE_REGISTRY = {
     "zero": zero_ref_inputs,
     "random": random_ref_inputs,
