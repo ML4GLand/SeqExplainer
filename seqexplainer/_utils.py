@@ -6,19 +6,17 @@ import pandas as pd
 from umap import UMAP
 import torch.nn as nn
 from typing import Dict, Callable
-from ._utils import _create_unique_seq_names
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-
+from tqdm.auto import tqdm
 
 class FeatureExtractor(nn.Module):
-    def __init__(self, model: nn.Module, keyWord: str):
+    def __init__(self, model: nn.Module, key_word: str):
         super().__init__()
         self.model = model
-        layers = sorted([k for k in dict([*model.named_modules()]) if keyWord in k])
-        logging.info("{} model layers identified with key word {}".format(len(layers), keyWord))
+        layers = sorted([k for k in dict([*model.named_modules()]) if key_word in k])
         self.features = {layer: torch.empty(0) for layer in layers}
-        self.handles = dict() 
+        self.handles = dict()
 
         for layerID in layers:
             layer = dict([*self.model.named_modules()])[layerID]
@@ -26,7 +24,7 @@ class FeatureExtractor(nn.Module):
             self.handles[layerID] = handle
             
     def SaveOutputHook(self, layerID: str) -> Callable:
-        def fn(laya, weValueYourInput, output): #laya = layer (e.g. Linear(...); weValueYourInput = input tensor
+        def fn(layer, input, output):
             self.features[layerID] = output
         return fn
 
@@ -34,6 +32,42 @@ class FeatureExtractor(nn.Module):
         preds = self.model(x, **kwargs)
         return self.features, self.handles, preds
     
+def get_layer(
+    model, 
+    layer_name
+):
+    return dict([*model.named_modules()])[layer_name]
+
+def get_layer_outputs(
+        model, 
+        inputs, 
+        layer_name,
+        batch_size=128,
+        device="cpu"
+    ):
+    # Set-up model feature extractor on device
+    model = _model_to_device(model, device)
+    model_extract = FeatureExtractor(model, layer_name)
+    
+    # Create torch tensor from inputs if ndarray
+    if isinstance(inputs, np.ndarray):
+        inputs = torch.from_numpy(inputs).float()
+    assert isinstance(inputs, torch.Tensor), "inputs must be a torch.Tensor or np.ndarray"
+
+    # Create an empty list to hold outputs
+    layer_outs = []
+    starts = np.arange(0, inputs.shape[0], batch_size)
+    for _, start in tqdm(
+        enumerate(starts),
+        total=len(starts),
+        desc=f"Computing layer outputs for layer {layer_name} on batches of size {batch_size}",
+    ):
+        inputs_ = inputs[start : start + batch_size]
+        inputs_ = inputs_.to(device)
+        layer_outs.append(model_extract(inputs_)[0][layer_name])
+    layer_outs = torch.cat(layer_outs, dim=0).detach().cpu().numpy()
+    return layer_outs
+
 def _make_dirs(
     output_dir,
     overwrite=False,
@@ -103,12 +137,6 @@ def _create_unique_seq_names(
 ):
     n_digits = len(str(n_seqs - 1))
     return ["seq{num:0{width}}".format(num=i, width=n_digits) for i in range(n_seqs)]
-
-def _compute_per_position_ic(ppm, background, pseudocount):
-    alphabet_len = len(background)
-    ic = ((np.log((ppm+pseudocount)/(1 + pseudocount*alphabet_len))/np.log(2))
-          *ppm - (np.log(background)*background/np.log(2))[None,:])
-    return np.sum(ic,axis=1)
 
 def pca(mtx, n_comp=30, index_name='index', new_index=None):
     """

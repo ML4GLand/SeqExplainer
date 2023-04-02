@@ -7,7 +7,6 @@ from ._references import get_reference
 from ._perturb import perturb_seq_torch
 from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
 
-
 # Reference vs output difference methods
 def delta(y, reference):
     return (y - reference).sum(axis=-1)
@@ -107,6 +106,7 @@ def _captum_attributions(
     inputs: tuple,
     method: str,
     target: int = 0,
+    device: str = "cpu",
     **kwargs
 ):
     """
@@ -131,10 +131,20 @@ def attribute(
     inputs: torch.Tensor,
     method: Union[str, Callable],
     target: int = 0,
+    reference_type: str = None,
     device: str = "cpu",
-    **kwargs
 ):
+    torch.backends.cudnn.enabled = False
+    
+    # Put model on device
+    model = _model_to_device(model, device)
 
+    # Put inputs on device
+    if isinstance(inputs, tuple):
+        inputs = tuple([i.requires_grad_().to(device) for i in inputs])
+    else:
+        inputs = inputs.requires_grad_().to(device)
+    
     # Put model on device
     model = _model_to_device(model, device)
 
@@ -145,9 +155,9 @@ def attribute(
         inputs = inputs.requires_grad_().to(device)
 
     # Check kwargs for reference
-    if "reference_type" in kwargs:
-        ref_type = kwargs.pop("reference_type")
-        kwargs["baselines"] =  get_reference(inputs, ref_type, device)
+    kwargs = {}
+    if reference_type is not None:
+        kwargs["baselines"] =  get_reference(inputs, reference_type, device)
 
     # Get attributions
     attr = ATTRIBUTIONS_REGISTRY[method](
@@ -161,15 +171,35 @@ def attribute(
 
     # Return attributions
     return attr
+    # Get attributions
+    if reference_type is not None:
+        references =  get_reference(inputs, reference_type, device)
+        attr = ATTRIBUTIONS_REGISTRY[method](
+                    model=model,
+                    inputs=inputs,
+                    method=method,
+                    target=target,
+                    baselines=references
+                )
+    else:
+        attr = ATTRIBUTIONS_REGISTRY[method](
+            model=model,
+            inputs=inputs,
+            method=method,
+            target=target
+        )
+
+    # Return attributions
+    return attr
 
 def attribute_on_batch(
     model,
     inputs: torch.Tensor,
     method: Union[str, Callable],
     target: int = 0,
-    device: str = "cpu",
+    reference_type: str = None,
     batch_size: int = 128,
-    **kwargs
+    device: str = "cpu"
 ):
     # Disable cudnn for faster computations
     torch.backends.cudnn.enabled = False
@@ -177,6 +207,10 @@ def attribute_on_batch(
     # Put model on device
     model = _model_to_device(model, device)
 
+    # Reference type
+    if reference_type is not None:
+        references =  get_reference(inputs, reference_type, device)
+    
     # Create an empty list to hold attributions
     attrs = []
     starts = np.arange(0, inputs.shape[0], batch_size)
@@ -193,8 +227,8 @@ def attribute_on_batch(
             inputs_,
             target=target,
             method=method,
-            device=device,
-            **kwargs
+            reference_type=reference_type,
+            device=device
         )
         attrs.append(curr_attrs)
 

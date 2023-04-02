@@ -1,8 +1,12 @@
-from ._filter_viz import *
+from ._utils import (
+    get_layer,
+    get_layer_outputs
+)
+from ._filters import *
 from ._references import (
     get_reference
 )
-from ._feature_attribution import (
+from ._attributions import (
     attribute, 
     attribute_on_batch
 )

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tqdm.auto import tqdm
 from ._utils import _k_largest_index_argsort, _naive_ism
-from ..preprocess import ohe_seqs, feature_implant_across_seq
+from seqpro import ohe_seqs, feature_implant_across_seq
 from ..utils import track
 from .. import settings
 

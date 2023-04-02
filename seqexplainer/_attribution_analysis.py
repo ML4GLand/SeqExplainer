@@ -2,7 +2,7 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
-from ._tools import pca, umap
+from ._utils import pca, umap
 from modiscolite.io import save_hdf5
 from modiscolite.tfmodisco import TFMoDISco
 from ._utils import _make_dirs, _path_to_image_html

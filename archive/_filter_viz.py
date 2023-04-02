@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import torch.nn as nn
 from tqdm.auto import tqdm
-from ..preprocess._utils import _get_vocab
+from seqpro._utils import _get_vocab
 from ._utils import _k_largest_index_argsort
 from ..utils import track
 from .._settings import settings
@@ -85,7 +85,7 @@ def _get_activations_from_layer(
     We currently only use forward sequences for computing activations of the layer,
     we do not currenlty include reverse complements
     """
-    from ..preprocess import decode_seqs
+    from seqpro import decode_seqs
     activations = []
     sequences = []
     dataset_len = len(sdataloader.dataset)

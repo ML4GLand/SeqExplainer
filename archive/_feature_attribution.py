@@ -4,7 +4,7 @@ from tqdm.auto import tqdm
 import pyranges as pr
 from captum.attr import InputXGradient, DeepLift, GradientShap
 from yuzu.naive_ism import naive_ism
-from ..preprocess import dinuc_shuffle_seq, perturb_seqs
+from seqpro import dinuc_shuffle_seq, perturb_seqs
 from ..utils import track
 from ._utils import _naive_ism
 from .._settings import settings
@@ -157,7 +157,7 @@ def _deeplift_explain(
         forward_ref = torch.zeros(inputs[0].size()).to(device)
         reverse_ref = torch.zeros(inputs[1].size()).to(device)
     elif ref_type == "shuffle":
-        from ..preprocess import dinuc_shuffle_seq
+        from seqpro import dinuc_shuffle_seq
         forward_ref = (
             torch.tensor(
                 [
@@ -254,7 +254,7 @@ def _gradientshap_explain(
         forward_ref = torch.zeros(inputs[0].size()).to(device)
         reverse_ref = torch.zeros(inputs[1].size()).to(device)
     elif ref_type == "shuffle":
-        from ..preprocess import dinuc_shuffle_seq
+        from seqpro import dinuc_shuffle_seq
 
         forward_ref = (
             torch.tensor(

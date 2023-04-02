@@ -1,11 +1,10 @@
-import tfomics
+#import tfomics
 import logomaker
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import colors
-from seqpro import nucleotide_content_seqs
-from ._utils import compute_per_position_ic, _make_dirs
+from ._utils import _compute_per_position_ic, _make_dirs
 
 
 def plot_saliency_map(explains, sort, width=13, height_per_explain=1):
@@ -112,15 +111,4 @@ def umap_plot(umap_data, umap1=0, umap2=1, color="b", loadings=None, labels=None
     plt.ylabel("UMAP{}".format(2))
     plt.show()
     return ax
-
-def plot_nucleotide_freq(seqs, title="", ax=None, figsize=(10, 5)):
-    import matplotlib.pyplot as plt
-    if ax is None:
-        _, ax = plt.subplots(figsize=figsize)
-    ax.set_title(title)
-    nuc_across_seq = nucleotide_content_seqs(seqs, axis=0, ohe=True, normalize=True)
-    ax.plot(nuc_across_seq.T)
-    ax.legend(["A", "C", "G", "T"])
-    ax.set_xlabel("Position")
-    ax.set_ylabel("Frequency")
     
