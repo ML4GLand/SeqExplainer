@@ -4,45 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import colors
-from ._utils import _compute_per_position_ic, _make_dirs
-
-
-def plot_saliency_map(explains, sort, width=13, height_per_explain=1):
-    """
-    Plot the saliency maps for each sequence
-    """
-    num_plot = len(explains)
-    fig = plt.figure(figsize=(width, num_plot*height_per_explain))
-    for i in range(num_plot):
-        ax = plt.subplot(num_plot, 1, i+1)
-        saliency_df = pd.DataFrame(explains[i].transpose([1,0]), columns=["A","C","G","T"])
-        saliency_df.index.name = "pos"
-        tfomics.impress.plot_attribution_map(saliency_df, ax, figsize=(num_plot,1))
-        plt.ylabel(sort[i])
-
-def plot_weights(
-    array, 
-    pwm=False, 
-    figsize=(10,3), 
-    save=None,
-    **kwargs
-):
-    if pwm:
-        ic = compute_per_position_ic(array, background=[0.25, 0.25, 0.25, 0.25], pseudocount=0.001)
-        array = array*ic[:, None]
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(111) 
-    df = pd.DataFrame(array, columns=['A', 'C', 'G', 'T'])
-    df.index.name = 'pos'
-    crp_logo = logomaker.Logo(df, ax=ax, font_name='Arial Rounded', **kwargs)
-    crp_logo.style_spines(visible=False)
-    plt.ylim(min(df.sum(axis=1).min(), 0), df.sum(axis=1).max())
-    plt.show()
-
-    if save:
-        dir = save.split("/")[:-1]
-        _make_dirs("/".join(dir))
-        plt.savefig(save, dpi=300, bbox_inches='tight')
+from ._utils import _make_dirs
 
 def skree_plot(pca_obj, n_comp=30):
     """

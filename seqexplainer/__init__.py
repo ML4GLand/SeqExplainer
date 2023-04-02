@@ -1,18 +1,18 @@
 from ._utils import (
     get_layer,
-    get_layer_outputs
+    get_layer_outputs,
+    load_eugene_model
 )
-from ._filters import *
 from ._references import (
     get_reference
 )
+from ._filters import *
 from ._attributions import (
-    attribute, 
-    attribute_on_batch
-)
-from ._attribution_analysis import (
+    attribute,
     attribution_pca,
-    attribution_umap,
+    attribution_umap
+)
+from ._modisco import (
     modisco,
     modisco_logos,
     modisco_tomtom,
@@ -43,15 +43,10 @@ from ._perturb import (
     occlude_patterns_seq,
     occlude_patterns_seqs,
 )
-
 from ._gia import (
     gc_bias_gia,
     positional_bias_gia,
     flanking_patterns_gia,
     pattern_interaction_gia,
     pattern_cooperativity_gia,
-)
-
-from ._plot import (
-    plot_saliency_map
 )

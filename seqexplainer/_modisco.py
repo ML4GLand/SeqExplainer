@@ -2,20 +2,10 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
-from ._utils import pca, umap
 from modiscolite.io import save_hdf5
 from modiscolite.tfmodisco import TFMoDISco
 from ._utils import _make_dirs, _path_to_image_html
 from modiscolite.report import run_tomtom, create_modisco_logos, report_motifs
-
-
-def _get_oned_contribs(
-    one_hot,
-    hypothetical_contribs,
-):
-    contr = one_hot * hypothetical_contribs
-    oned_contr = contr.sum(axis=1)
-    return oned_contr
 
 def _trim_cwm(
     cwm,
@@ -29,23 +19,6 @@ def _trim_cwm(
     start, end = max(np.min(pass_inds) - 4, 0), min(np.max(pass_inds) + 4 + 1, len(score) + 1)
     trimmed_cwm = cwm[start:end]
     return trimmed_cwm
-
-def attribution_pca(
-    one_hot,
-    hypothetical_contribs, 
-    n_comp: int = 30, 
-):
-    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
-    pca_obj, pca_df = pca(oned_contr, n_comp=n_comp)
-    return pca_obj, pca_df
-
-def attribution_umap(
-    one_hot,
-    hypothetical_contribs, 
-):
-    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
-    umap_obj, umap_df = umap(oned_contr)
-    return umap_obj, umap_df
 
 def modisco(
     one_hot,

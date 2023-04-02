@@ -1,6 +1,7 @@
 import os
 import torch
 import logging
+import importlib
 import numpy as np
 import pandas as pd
 from umap import UMAP
@@ -9,6 +10,26 @@ from typing import Dict, Callable
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
+
+def _get_oned_contribs(
+    one_hot,
+    hypothetical_contribs,
+):
+    contr = one_hot * hypothetical_contribs
+    oned_contr = contr.sum(axis=1)
+    return oned_contr
+
+def load_eugene_model(model_path):
+    model_state = torch.load(model_path)
+    try:
+        arch = model_state["hyper_parameters"]["arch"]
+        model_type = getattr(importlib.import_module("eugene.models"), arch)
+        model = model_type(**model_state["hyper_parameters"])
+        model.load_state_dict(model_state["state_dict"])
+    except ImportError:
+        raise ImportError("Please install eugene-tools (pip install eugene-tools) to use this feature.")
+    return model
+
 
 class FeatureExtractor(nn.Module):
     def __init__(self, model: nn.Module, key_word: str):

@@ -1,11 +1,25 @@
 import torch
 import numpy as np
+import pandas as pd
+import logomaker as lm
 from tqdm.auto import tqdm
 from typing import Union, Callable
 from ._utils import _model_to_device
+from seqpro._helpers import _get_vocab
 from ._references import get_reference 
 from ._perturb import perturb_seq_torch
+import matplotlib.pyplot as plt
+from ._utils import pca, umap, _get_oned_contribs
 from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
+
+
+def gradient_correction(
+    hypothetical_contribs,
+    one_hot,
+    reference,
+    diff_type="delta",
+):
+    pass
 
 # Reference vs output difference methods
 def delta(y, reference):
@@ -130,87 +144,21 @@ def attribute(
     model,
     inputs: torch.Tensor,
     method: Union[str, Callable],
-    target: int = 0,
     reference_type: str = None,
+    target: int = 0,
+    batch_size: int = 128,
     device: str = "cpu",
 ):
+    # Disable cudnn for faster computations 
     torch.backends.cudnn.enabled = False
     
     # Put model on device
     model = _model_to_device(model, device)
-
-    # Put inputs on device
-    if isinstance(inputs, tuple):
-        inputs = tuple([i.requires_grad_().to(device) for i in inputs])
-    else:
-        inputs = inputs.requires_grad_().to(device)
     
-    # Put model on device
-    model = _model_to_device(model, device)
+    # Check type of inputs
+    if isinstance(inputs, np.ndarray):
+        inputs = torch.from_numpy(inputs).float()
 
-    # Put inputs on device
-    if isinstance(inputs, tuple):
-        inputs = tuple([i.requires_grad_().to(device) for i in inputs])
-    else:
-        inputs = inputs.requires_grad_().to(device)
-
-    # Check kwargs for reference
-    kwargs = {}
-    if reference_type is not None:
-        kwargs["baselines"] =  get_reference(inputs, reference_type, device)
-
-    # Get attributions
-    attr = ATTRIBUTIONS_REGISTRY[method](
-        model=model,
-        inputs=inputs,
-        method=method,
-        target=target,
-        device=device,
-        **kwargs
-    )
-
-    # Return attributions
-    return attr
-    # Get attributions
-    if reference_type is not None:
-        references =  get_reference(inputs, reference_type, device)
-        attr = ATTRIBUTIONS_REGISTRY[method](
-                    model=model,
-                    inputs=inputs,
-                    method=method,
-                    target=target,
-                    baselines=references
-                )
-    else:
-        attr = ATTRIBUTIONS_REGISTRY[method](
-            model=model,
-            inputs=inputs,
-            method=method,
-            target=target
-        )
-
-    # Return attributions
-    return attr
-
-def attribute_on_batch(
-    model,
-    inputs: torch.Tensor,
-    method: Union[str, Callable],
-    target: int = 0,
-    reference_type: str = None,
-    batch_size: int = 128,
-    device: str = "cpu"
-):
-    # Disable cudnn for faster computations
-    torch.backends.cudnn.enabled = False
-
-    # Put model on device
-    model = _model_to_device(model, device)
-
-    # Reference type
-    if reference_type is not None:
-        references =  get_reference(inputs, reference_type, device)
-    
     # Create an empty list to hold attributions
     attrs = []
     starts = np.arange(0, inputs.shape[0], batch_size)
@@ -219,21 +167,121 @@ def attribute_on_batch(
     for _, start in tqdm(
         enumerate(starts),
         total=len(starts),
-        desc=f"Computing feature attributions on batches of size {batch_size}",
+        desc=f"Computing attributions on batches of size {batch_size}",
     ):
+        # Grab the current batch
         inputs_ = inputs[start : start + batch_size]
-        curr_attrs = attribute(
-            model,
-            inputs_,
-            target=target,
+
+        # Put inputs on device
+        if isinstance(inputs, tuple):
+            inputs_ = tuple([i.requires_grad_().to(device) for i in inputs_])
+        else:
+            inputs_ = inputs_.requires_grad_().to(device)
+        
+        # Add reference if needed
+        kwargs = {}
+        if reference_type is not None:
+            kwargs["baselines"] =  get_reference(inputs_, reference_type, device)
+
+        # Get attributions and append
+        curr_attrs = ATTRIBUTIONS_REGISTRY[method](
+            model=model,
+            inputs=inputs_,
             method=method,
-            reference_type=reference_type,
-            device=device
+            target=target,
+            device=device,
+            **kwargs
         )
         attrs.append(curr_attrs)
 
     # Concatenate the attributions
-    attrs = torch.cat(attrs)
+    attrs = torch.cat(attrs).detach().cpu().numpy()
 
     # Return attributions
     return attrs
+
+def plot_attribution_logo(
+    attrs: np.ndarray,
+    vocab: str = "DNA",
+    highlights: list = [],
+    highlight_colors: list = ["lavenderblush", "lightcyan", "honeydew"],
+    height_scaler: float = 1.8,
+    title: str ="",
+    ylab: str = "Attribution",
+    xlab: str = "Position",
+    **kwargs
+):
+    vocab = _get_vocab(vocab)
+    if attrs.shape[-1] != 4:
+        attrs = attrs.T
+    
+    # Create Logo object
+    df = pd.DataFrame(attrs, columns=vocab)
+    df.index.name = "pos"
+    y_max = np.max(float(np.max(df.values)) * height_scaler, 0)
+    y_min = np.min(float(np.min(df.values)) * height_scaler, 0)
+    nn_logo = lm.Logo(df, **kwargs)
+
+    # style using Logo methods
+    nn_logo.style_spines(visible=False)
+    nn_logo.style_spines(spines=["left"], visible=True, bounds=[y_min, y_max])
+
+    # style using Axes methods
+    nn_logo.ax.set_xlim([0, len(df)])
+    nn_logo.ax.set_xticks([])
+    nn_logo.ax.set_ylim([y_min, y_max])
+    nn_logo.ax.set_ylabel(ylab)
+    nn_logo.ax.set_xlabel(xlab)
+    nn_logo.ax.set_title(title)
+    for i, highlight in enumerate(highlights):
+        nn_logo.highlight_position_range(
+            pmin=highlight[0], 
+            pmax=highlight[1], 
+            color=highlight_colors[i]
+        )
+    
+def plot_attribution_logos(
+    attrs: np.ndarray,
+    vocab: str = "DNA",
+    height_scaler: float = 1.8,
+    title: str ="",
+    ylab: str = "Attribution",
+    xlab: str = "Position",
+    figsize: tuple = (10, 10),
+    ncols: int = 1,
+    **kwargs
+):
+    n_attrs = attrs.shape[0]
+    nrows = int(np.ceil(n_attrs / ncols))
+    _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
+    axes = axes.flatten()
+    for i in range(n_attrs):
+        plot_attribution_logo(
+            attrs[i],
+            vocab=vocab,
+            height_scaler=height_scaler,
+            title=title,
+            ylab=ylab,
+            xlab=xlab,
+            ax=axes[i],
+            **kwargs
+        )
+    plt.tight_layout()
+    plt.show()
+
+def attribution_pca(
+    one_hot,
+    hypothetical_contribs, 
+    n_comp: int = 30, 
+):
+    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
+    pca_obj, pca_df = pca(oned_contr, n_comp=n_comp)
+    return pca_obj, pca_df
+
+def attribution_umap(
+    one_hot,
+    hypothetical_contribs, 
+):
+    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
+    umap_obj, umap_df = umap(oned_contr)
+    return umap_obj, umap_df
