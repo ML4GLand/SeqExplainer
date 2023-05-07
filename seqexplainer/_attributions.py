@@ -1,34 +1,30 @@
-import torch
+from typing import Callable, Union
+
+import logomaker as lm
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import logomaker as lm
-from tqdm.auto import tqdm
-from typing import Union, Callable
-from ._utils import _model_to_device
+import torch
+from captum.attr import DeepLift, DeepLiftShap, GradientShap, InputXGradient
 from seqpro._helpers import _get_vocab
-from ._references import get_reference 
+from tqdm.auto import tqdm
+
 from ._perturb import perturb_seq_torch
-import matplotlib.pyplot as plt
-from ._utils import pca, umap, _get_oned_contribs
-from captum.attr import InputXGradient, DeepLift, GradientShap, DeepLiftShap
+from ._references import get_reference
+from ._utils import _get_oned_contribs, _model_to_device, pca, umap
 
-
-def gradient_correction(
-    hypothetical_contribs,
-    one_hot,
-    reference,
-    diff_type="delta",
-):
-    pass
 
 # Reference vs output difference methods
 def delta(y, reference):
+    """Difference between output and reference"""
     return (y - reference).sum(axis=-1)
 
 def l1(y, reference):
+    """L1 norm between output and reference"""
     return (y - reference).abs().sum(axis=-1)
 
 def l2(y, reference):
+    """L2 norm between output and reference"""
     return torch.sqrt(torch.square(y - reference).sum(axis=-1))
 
 DIFF_REGISTRY = {
@@ -191,11 +187,11 @@ def attribute(
             target=target,
             device=device,
             **kwargs
-        )
+        ).detach().cpu()
         attrs.append(curr_attrs)
 
     # Concatenate the attributions
-    attrs = torch.cat(attrs).detach().cpu().numpy()
+    attrs = torch.cat(attrs).numpy()
 
     # Return attributions
     return attrs
@@ -285,3 +281,11 @@ def attribution_umap(
     oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
     umap_obj, umap_df = umap(oned_contr)
     return umap_obj, umap_df
+
+def gradient_correction(
+    hypothetical_contribs,
+    one_hot,
+    reference,
+    diff_type="delta",
+):
+    pass
