@@ -1,7 +1,8 @@
-import torch
 import numpy as np
+import torch
+from seqpro import decode_seq, decode_seqs, ohe_seq, reverse_complement_seqs
 from seqpro._helpers import _get_vocab
-from seqpro import ohe_seq, decode_seq, decode_seqs, reverse_complement_seqs
+
 
 def perturb_seq(seq):
     """Numpy version of perturbations"""
@@ -52,7 +53,6 @@ def perturb_seqs_torch(seqs):
     for i in range(n_seqs):
         for k in range(1, n_choices):
             idx = torch.arange(seq_len) * (n_choices - 1) + (k - 1)
-
             X[i, idx, idxs[i], torch.arange(seq_len)] = 0
             X[i, idx, (idxs[i] + k) % n_choices, torch.arange(seq_len)] = 1
     return X

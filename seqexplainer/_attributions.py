@@ -1,3 +1,4 @@
+import gc
 from typing import Callable, Union
 
 import logomaker as lm
@@ -33,59 +34,92 @@ DIFF_REGISTRY = {
     "l2": l2,
 }
 
+def report_gpu():
+   torch.cuda.empty_cache()
+   torch.cuda.synchronize()
+   print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)} GB")
+   
 # In silico mutagenesis methods
 def _naive_ism(
     model, 
     inputs, 
     target=None, 
-    batch_size=128, 
+    batch_size=32, 
     diff_type="delta", 
     device="cpu"
 ):
+    """Naive in silico mutagenesis
+
+    Perturb each position in the input sequence and calculate the difference in output
+    """
 
     # Get the number of sequences, choices, and sequence length
-    n_seqs, n_choices, seq_len = inputs.shape
-    n = seq_len * (n_choices - 1)
+    print("inputs:", inputs.shape, inputs.device)
+    N, A, L = inputs.shape
+    n = L * (A - 1)
     X_idxs = inputs.argmax(axis=1)
 
     # If target not provided aggregate over all outputs
     target = np.arange(model.output_dim) if target is None else target
     
-    # Move the model to eval mode
-    model = model.eval() 
-
     # Get the reference output
-    reference = model(inputs)[:, target].unsqueeze(1)
+    model.eval()
+    reference = model(inputs)[:, target].unsqueeze(1).cpu()
+    inputs = inputs.cpu()
+    print("reference:", reference.shape, reference.device)
+    print("inputs:", inputs.shape, inputs.device) 
+
+    # Get the batch starts
     batch_starts = np.arange(0, n, batch_size)
+    print("batch_starts:", batch_starts[:5])
+    report_gpu()
 
     # Get the change in output for each perturbation
     isms = []
-    for i in range(n_seqs):
-        X = perturb_seq_torch(inputs[i])
+    for i in range(N):
+        print("input:", inputs[i].shape, inputs[i].device)
+        X = perturb_seq_torch(inputs[i]).cpu()
+        print("X:", X.shape, X.device)
         y = []
         for start in batch_starts:
+            model.to(device)
+            print("model:", model.device)
             X_ = X[start : start + batch_size]
-            y_ = model(X_)[:, target].unsqueeze(1)
+            X_ = X_.to(device)
+            with torch.no_grad():
+                y_ = model(X_)[:, target].unsqueeze(1).cpu()
+                X_ = X_.detach().cpu()
+                #print("y_:", y_.shape, y_.device)
             y.append(y_)
-            del X_
+            del X_, y_
+            if device[:4] == 'cuda':
+                gc.collect()
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                report_gpu()
+            #print("model:", model.device)
         y = torch.cat(y)
-        ism = DIFF_REGISTRY[diff_type](y, reference[i])
+        print("y:", y.shape, y.device)
+        ism = DIFF_REGISTRY[diff_type](y, reference[i]).cpu()
+        print("ism:", ism.shape, ism.device)
         isms.append(ism)
-        
-        if device[:4] == 'cuda':
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
+        print("inputs:", inputs.shape, inputs.device)
 
+        
+    
     # Clean up the output to be (N, A, L)
-    isms = torch.stack(isms).to(device)
-    isms = isms.reshape(n_seqs, seq_len, n_choices - 1)
-    j_idxs = torch.arange(n_seqs * seq_len)
-    X_ism = torch.zeros(n_seqs * seq_len, n_choices, device=device)
-    for i in range(1, n_choices):
-        i_idxs = (X_idxs.flatten() + i) % n_choices
+    isms = torch.stack(isms).cpu()
+    print("isms:", isms.shape, isms.device)
+
+    isms = isms.reshape(N, L, A - 1)
+    j_idxs = torch.arange(N * L)
+    X_ism = torch.zeros(N * L, A)
+    
+    for i in range(1, A):
+        i_idxs = (X_idxs.flatten() + i) % A 
         X_ism[j_idxs, i_idxs] = isms[:, :, i - 1].flatten()
 
-    X_ism = X_ism.reshape(n_seqs, seq_len, n_choices).permute(0, 2, 1)
+    X_ism = X_ism.reshape(N, L, A).permute(0, 2, 1)
     return X_ism
 
 ISM_REGISTRY = {
@@ -150,10 +184,6 @@ def attribute(
     
     # Put model on device
     model = _model_to_device(model, device)
-    
-    # Check type of inputs
-    if isinstance(inputs, np.ndarray):
-        inputs = torch.from_numpy(inputs).float()
 
     # Create an empty list to hold attributions
     attrs = []
@@ -167,17 +197,12 @@ def attribute(
     ):
         # Grab the current batch
         inputs_ = inputs[start : start + batch_size]
-
-        # Put inputs on device
-        if isinstance(inputs, tuple):
-            inputs_ = tuple([i.requires_grad_().to(device) for i in inputs_])
-        else:
-            inputs_ = inputs_.requires_grad_().to(device)
         
         # Add reference if needed
         kwargs = {}
         if reference_type is not None:
-            kwargs["baselines"] =  get_reference(inputs_, reference_type, device)
+            refs = get_reference(inputs_, reference_type)
+            kwargs["baselines"] = refs
 
         # Get attributions and append
         curr_attrs = ATTRIBUTIONS_REGISTRY[method](
