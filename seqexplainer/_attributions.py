@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 
 from ._perturb import perturb_seq_torch
 from ._references import get_reference
-from ._utils import _get_oned_contribs, _model_to_device, pca, umap
+from ._utils import _get_oned_contribs, _model_to_device, pca, report_gpu, umap
 
 
 # Reference vs output difference methods
@@ -33,12 +33,7 @@ DIFF_REGISTRY = {
     "l1": l1,
     "l2": l2,
 }
-
-def report_gpu():
-   torch.cuda.empty_cache()
-   torch.cuda.synchronize()
-   print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)} GB")
-   
+ 
 # In silico mutagenesis methods
 def _naive_ism(
     model, 

@@ -1,15 +1,17 @@
-import os
-import torch
-import logging
 import importlib
+import logging
+import os
+from typing import Callable, Dict
+
 import numpy as np
 import pandas as pd
-from umap import UMAP
+import torch
 import torch.nn as nn
-from typing import Dict, Callable
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
+from umap import UMAP
+
 
 def _get_oned_contribs(
     one_hot,
@@ -205,3 +207,8 @@ def umap(mtx, index_name='index', new_index=None):
     umap_df.index = new_index if new_index is not None else _create_unique_seq_names(mtx.shape[0])
     umap_df.index.name = index_name
     return umap_obj, umap_df
+
+def report_gpu():
+   torch.cuda.empty_cache()
+   torch.cuda.synchronize()
+   print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)} GB")

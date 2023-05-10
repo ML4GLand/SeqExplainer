@@ -88,7 +88,8 @@ def shuffle_ref_inputs(
     return shuffled_sequences
 
 def dinuc_shuffle_ref_inputs(
-    inputs: NDArray
+    inputs: NDArray,
+    **kwargs
 ) -> NDArray:
     """Return a NumPy array of dinucleotide shuffled inputs with the same shape as the inputs.
 
@@ -99,6 +100,8 @@ def dinuc_shuffle_ref_inputs(
     ----------
     inputs : NDArray
         The input sequences to be used to generate a set of dinucleotide shuffled reference sequences.
+    **kwargs
+        Additional keyword arguments to pass to the dinuc_shuffle_seqs function from the seqpro package.
 
     Returns
     -------
@@ -109,7 +112,7 @@ def dinuc_shuffle_ref_inputs(
     ----
     This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
     """
-    refs = dinuc_shuffle_seqs(inputs)
+    refs = dinuc_shuffle_seqs(inputs, **kwargs)
     return refs
 
 def gc_ref_inputs(
