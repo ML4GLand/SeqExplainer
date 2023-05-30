@@ -173,6 +173,7 @@ def attribute(
     target: int = 0,
     batch_size: int = 128,
     device: str = "cpu",
+    verbose: bool = True,
 ):
     # Disable cudnn for faster computations 
     torch.backends.cudnn.enabled = False
@@ -189,14 +190,19 @@ def attribute(
         enumerate(starts),
         total=len(starts),
         desc=f"Computing attributions on batches of size {batch_size}",
+        disable=not verbose,
     ):
         # Grab the current batch
         inputs_ = inputs[start : start + batch_size]
+        inputs_ = inputs_.requires_grad_(True).to(device)
+        #print("inputs_:", inputs_.shape, inputs_.device)
         
         # Add reference if needed
         kwargs = {}
         if reference_type is not None:
             refs = get_reference(inputs_, reference_type)
+            refs = torch.tensor(refs, dtype=torch.float32).requires_grad_(True).to(device)
+            #print("refs:", refs.shape, refs.device)
             kwargs["baselines"] = refs
 
         # Get attributions and append

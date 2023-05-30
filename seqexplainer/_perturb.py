@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from seqpro import decode_seq, decode_seqs, ohe_seq, reverse_complement_seqs
+from seqpro import decode_seq, decode_seqs, ohe, reverse_complement
 from seqpro._helpers import _get_vocab
 
 
@@ -91,7 +91,7 @@ def embed_pattern_seq(
         embed_seq = seq.copy()
         # If the pattern is a string, we need to one-hot encode it
         if pattern_encoding == "str":
-            pattern = ohe_seq(pattern, vocab=vocab)
+            pattern = ohe(pattern, vocab=vocab)
         
         # If the pattern is one-hot encoded but has the wrong shape, we need to transpose it
         if pattern.shape[0] != embed_seq.shape[0]:
@@ -327,7 +327,7 @@ def find_patterns_seq(
         patterns = [patterns]
     
     if check_rev_comp:
-        rev_patterns = list(reverse_complement_seqs(patterns, verbose=False))
+        rev_patterns = list(reverse_complement(patterns, verbose=False))
         all_patterns = patterns + rev_patterns
         orientations = ["F"] * len(patterns) + ["R"] * len(rev_patterns)
         if pattern_names is not None:
@@ -401,7 +401,7 @@ def occlude_patterns_seq(
         for pos, motif in hits.items():    
             # Get random pattern of same size as pattern
             if occlusion_pattern is None:
-                occlusion_pattern = ohe_seq("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
+                occlusion_pattern = ohe("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
             embed_seq = embed_pattern_seq(embed_seq, occlusion_pattern, pos, ohe=True, pattern_encoding="ohe")
 
         # check if there are still motif hits
@@ -435,7 +435,7 @@ def occlude_patterns_seqs(
             for pos, motif in hit.items():
                 # Get random pattern of same size as pattern
                 if occlusion_pattern is None:
-                    occlusion_pattern = ohe_seq("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
+                    occlusion_pattern = ohe("".join(np.random.choice(["A", "C", "G", "T"], size=len(motif[-1]))))
                 embed_seqs[i] = embed_pattern_seq(embed_seqs[i], occlusion_pattern, pos, ohe=True, pattern_encoding="ohe")
         hits = find_patterns_seqs(embed_seqs, patterns, starting_pos=starting_pos, check_rev_comp=check_rev_comp)
         total_hits = 0

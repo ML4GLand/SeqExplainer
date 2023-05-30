@@ -1,5 +1,5 @@
 import numpy as np
-from seqpro import dinuc_shuffle_seqs
+from seqpro import k_shuffle
 
 
 def generate_profile_set(base_sequence, num_sample):
@@ -58,7 +58,7 @@ def generate_dinucleotide_shuffled_set(base_sequence, num_sample):
     x_null = base_sequence[shuffle[:num_sample]]
 
     # shuffle dinucleotides
-    x_null = dinuc_shuffle_seqs(x_null)
+    x_null = k_shuffle(x_null)
     return x_null
 
 def generate_subset_set(base_sequence, num_sample):
