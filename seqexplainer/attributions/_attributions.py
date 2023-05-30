@@ -1,19 +1,32 @@
 import gc
 from typing import Callable, Union
 
-import logomaker as lm
-import matplotlib.pyplot as plt
+
 import numpy as np
 import pandas as pd
 import torch
 from captum.attr import DeepLift, DeepLiftShap, GradientShap, InputXGradient
-from seqpro._helpers import _get_vocab
 from tqdm.auto import tqdm
 
-from ._perturb import perturb_seq_torch
-from ._references import get_reference
-from ._utils import _get_oned_contribs, _model_to_device, pca, report_gpu, umap
+from .._perturb import perturb_seq_torch
+from .._references import get_reference
+from .._utils import _model_to_device, report_gpu
 
+def _get_oned_contribs(
+    one_hot,
+    hypothetical_contribs,
+):
+    contr = one_hot * hypothetical_contribs
+    oned_contr = contr.sum(axis=1)
+    return oned_contr
+
+def _gradient_correction(
+    hypothetical_contribs,
+    one_hot,
+    reference,
+    diff_type="delta",
+):
+    pass
 
 # Reference vs output difference methods
 def delta(y, reference):
@@ -222,96 +235,3 @@ def attribute(
     # Return attributions
     return attrs
 
-def plot_attribution_logo(
-    attrs: np.ndarray,
-    vocab: str = "DNA",
-    highlights: list = [],
-    highlight_colors: list = ["lavenderblush", "lightcyan", "honeydew"],
-    height_scaler: float = 1.8,
-    title: str ="",
-    ylab: str = "Attribution",
-    xlab: str = "Position",
-    **kwargs
-):
-    vocab = _get_vocab(vocab)
-    if attrs.shape[-1] != 4:
-        attrs = attrs.T
-    
-    # Create Logo object
-    df = pd.DataFrame(attrs, columns=vocab)
-    df.index.name = "pos"
-    y_max = np.max(float(np.max(df.values)) * height_scaler, 0)
-    y_min = np.min(float(np.min(df.values)) * height_scaler, 0)
-    nn_logo = lm.Logo(df, **kwargs)
-
-    # style using Logo methods
-    nn_logo.style_spines(visible=False)
-    nn_logo.style_spines(spines=["left"], visible=True, bounds=[y_min, y_max])
-
-    # style using Axes methods
-    nn_logo.ax.set_xlim([0, len(df)])
-    nn_logo.ax.set_xticks([])
-    nn_logo.ax.set_ylim([y_min, y_max])
-    nn_logo.ax.set_ylabel(ylab)
-    nn_logo.ax.set_xlabel(xlab)
-    nn_logo.ax.set_title(title)
-    for i, highlight in enumerate(highlights):
-        nn_logo.highlight_position_range(
-            pmin=highlight[0], 
-            pmax=highlight[1], 
-            color=highlight_colors[i]
-        )
-    
-def plot_attribution_logos(
-    attrs: np.ndarray,
-    vocab: str = "DNA",
-    height_scaler: float = 1.8,
-    title: str ="",
-    ylab: str = "Attribution",
-    xlab: str = "Position",
-    figsize: tuple = (10, 10),
-    ncols: int = 1,
-    **kwargs
-):
-    n_attrs = attrs.shape[0]
-    nrows = int(np.ceil(n_attrs / ncols))
-    _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
-    axes = axes.flatten()
-    for i in range(n_attrs):
-        plot_attribution_logo(
-            attrs[i],
-            vocab=vocab,
-            height_scaler=height_scaler,
-            title=title,
-            ylab=ylab,
-            xlab=xlab,
-            ax=axes[i],
-            **kwargs
-        )
-    plt.tight_layout()
-    plt.show()
-
-def attribution_pca(
-    one_hot,
-    hypothetical_contribs, 
-    n_comp: int = 30, 
-):
-    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
-    pca_obj, pca_df = pca(oned_contr, n_comp=n_comp)
-    return pca_obj, pca_df
-
-def attribution_umap(
-    one_hot,
-    hypothetical_contribs, 
-):
-    oned_contr = _get_oned_contribs(one_hot, hypothetical_contribs)
-    umap_obj, umap_df = umap(oned_contr)
-    return umap_obj, umap_df
-
-def gradient_correction(
-    hypothetical_contribs,
-    one_hot,
-    reference,
-    diff_type="delta",
-):
-    pass

@@ -1,100 +1,57 @@
-import importlib
 import logging
 import os
 from typing import Callable, Dict
-
+import gc
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from tqdm.auto import tqdm
-from umap import UMAP
 
 
-def _get_oned_contribs(
-    one_hot,
-    hypothetical_contribs,
-):
-    contr = one_hot * hypothetical_contribs
-    oned_contr = contr.sum(axis=1)
-    return oned_contr
+def _model_to_device(
+    model: torch.nn.Module,
+    device: str = "cpu"
+) -> torch.nn.Module:
+    """Move a model to a device and set it in eval mode
 
-def load_eugene_model(model_path):
-    model_state = torch.load(model_path)
-    try:
-        arch = model_state["hyper_parameters"]["arch"]
-        model_type = getattr(importlib.import_module("eugene.models"), arch)
-        model = model_type(**model_state["hyper_parameters"])
-        model.load_state_dict(model_state["state_dict"])
-    except ImportError:
-        raise ImportError("Please install eugene-tools (pip install eugene-tools) to use this feature.")
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to move to a device
+    device : str, optional
+        The device to move the model to, by default "cpu"
+
+    Returns
+    -------
+    torch.nn.Module
+        The model moved to the device and set in eval mode
+    """
+    model.eval()
+    model.to(device)
     return model
 
-
-class FeatureExtractor(nn.Module):
-    def __init__(self, model: nn.Module, key_word: str):
-        super().__init__()
-        self.model = model
-        layers = sorted([k for k in dict([*model.named_modules()]) if key_word in k])
-        self.features = {layer: torch.empty(0) for layer in layers}
-        self.handles = dict()
-
-        for layerID in layers:
-            layer = dict([*self.model.named_modules()])[layerID]
-            handle = layer.register_forward_hook(self.SaveOutputHook(layerID))
-            self.handles[layerID] = handle
-            
-    def SaveOutputHook(self, layerID: str) -> Callable:
-        def fn(layer, input, output):
-            self.features[layerID] = output
-        return fn
-
-    def forward(self, x, **kwargs) -> Dict[str, torch.Tensor]:
-        preds = self.model(x, **kwargs)
-        return self.features, self.handles, preds
-    
-def get_layer(
-    model, 
-    layer_name
-):
-    return dict([*model.named_modules()])[layer_name]
-
-def get_layer_outputs(
-        model, 
-        inputs, 
-        layer_name,
-        batch_size=128,
-        device="cpu"
-    ):
-    # Set-up model feature extractor on device
-    model = _model_to_device(model, device)
-    model_extract = FeatureExtractor(model, layer_name)
-    
-    # Create torch tensor from inputs if ndarray
-    if isinstance(inputs, np.ndarray):
-        inputs = torch.from_numpy(inputs).float()
-    assert isinstance(inputs, torch.Tensor), "inputs must be a torch.Tensor or np.ndarray"
-
-    # Create an empty list to hold outputs
-    layer_outs = []
-    starts = np.arange(0, inputs.shape[0], batch_size)
-    for _, start in tqdm(
-        enumerate(starts),
-        total=len(starts),
-        desc=f"Computing layer outputs for layer {layer_name} on batches of size {batch_size}",
-    ):
-        inputs_ = inputs[start : start + batch_size]
-        inputs_ = inputs_.to(device)
-        layer_outs.append(model_extract(inputs_)[0][layer_name])
-    layer_outs = torch.cat(layer_outs, dim=0).detach().cpu().numpy()
-    return layer_outs
+def _report_gpu() -> None:
+   """
+    Garbage colllects, empties the cache, and synchronizes the GPU
+   """
+   gc.collect()
+   torch.cuda.empty_cache()
+   torch.cuda.synchronize()
+   print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)} GB")
 
 def _make_dirs(
-    output_dir,
-    overwrite=False,
-):
+    output_dir: str,
+    overwrite: bool = False
+) -> None:
+    """Make a directory with an option to overwrite it if it already exists
+
+    Parameters
+    ----------
+    output_dir : str
+        The directory to create
+    overwrite : bool, optional
+        Whether to overwrite the directory if it already exists, by default False
+    """
+
     if os.path.exists(output_dir):
         if overwrite:
             logging.info("Overwriting existing directory: {}".format(output_dir))
@@ -104,15 +61,9 @@ def _make_dirs(
             return
     os.makedirs(output_dir)
 
-def _path_to_image_html(path):
+def _path_to_image_html(path: str):
+    """Create an HTML image tag from a path"""
     return '<img src="'+ path + '" width="240" >'
-
-def _model_to_device(model, device="cpu"):
-    """
-    """
-    model.eval()
-    model.to(device)
-    return model
 
 def _k_largest_index_argsort(
     a: np.ndarray, 
@@ -156,59 +107,19 @@ def _k_largest_index_argsort(
     return np.column_stack(np.unravel_index(idx, a.shape))
 
 def _create_unique_seq_names(
-    n_seqs,
-):
+    n_seqs: int
+) -> np.ndarray:
+    """Create a list of unique sequence names
+
+    Parameters
+    ----------
+    n_seqs : int
+        The number of sequences to create names for
+    
+    Returns
+    -------
+    np.ndarray
+        A list of unique sequence names
+    """
     n_digits = len(str(n_seqs - 1))
     return ["seq{num:0{width}}".format(num=i, width=n_digits) for i in range(n_seqs)]
-
-def pca(mtx, n_comp=30, index_name='index', new_index=None):
-    """
-    Function to perform scaling and PCA on an input matrix
-    Parameters
-    ----------
-    mtx : sample by feature
-    n_comp : number of pcs to return
-    index_name : name of index if part of input
-    Returns
-    sklearn pca object and pca dataframe
-    -------
-    """
-    print("Make sure your matrix is sample by feature")
-    scaler = StandardScaler()
-    scaler.fit(mtx)
-    mtx_scaled = scaler.transform(mtx)
-    pca_obj = PCA(n_components=n_comp)
-    pca_obj.fit(mtx_scaled)
-    pca_df = pd.DataFrame(pca_obj.fit_transform(mtx_scaled))
-    pca_df.columns = ['PC' + str(col+1) for col in pca_df.columns]
-    pca_df.index = new_index if new_index is not None else _create_unique_seq_names(mtx.shape[0])
-    pca_df.index.name = index_name
-    return pca_obj, pca_df
-
-def umap(mtx, index_name='index', new_index=None):
-    """
-    Function to perform scaling and UMAP on an input matrix
-    Parameters
-    ----------
-    mtx : sample by feature
-    index_name : name of index if part of input
-    Returns
-    umap object and umap dataframe
-    -------
-    """
-    print("Make sure your matrix is sample by feature")
-    scaler = StandardScaler()
-    scaler.fit(mtx)
-    mtx_scaled = scaler.transform(mtx)
-    umap_obj = UMAP()
-    umap_obj.fit(mtx_scaled)
-    umap_df = pd.DataFrame(umap_obj.transform(mtx_scaled))
-    umap_df.columns = ['UMAP' + str(col+1) for col in umap_df.columns]
-    umap_df.index = new_index if new_index is not None else _create_unique_seq_names(mtx.shape[0])
-    umap_df.index.name = index_name
-    return umap_obj, umap_df
-
-def report_gpu():
-   torch.cuda.empty_cache()
-   torch.cuda.synchronize()
-   print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)} GB")

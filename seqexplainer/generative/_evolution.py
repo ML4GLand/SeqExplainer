@@ -1,8 +1,7 @@
 
 import torch
 import numpy as np
-from ._utils import _k_largest_index_argsort, _naive_ism
-from seqpro import ohe_seqs, feature_implant_across_seq
+from .._utils import _k_largest_index_argsort, _naive_ism
 
 
 def best_k_muts(
