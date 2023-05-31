@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from modiscolite.io import save_hdf5
 from modiscolite.tfmodisco import TFMoDISco
-from ._utils import _make_dirs, _path_to_image_html
+from .._utils import _make_dirs, _path_to_image_html
 from modiscolite.report import run_tomtom, create_modisco_logos, report_motifs
 
 def _trim_cwm(

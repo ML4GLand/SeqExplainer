@@ -8,8 +8,8 @@ import torch
 from captum.attr import DeepLift, DeepLiftShap, GradientShap, InputXGradient
 from tqdm.auto import tqdm
 
-from .._perturb import perturb_seq_torch
-from .._references import get_reference
+from ..gia._perturb import perturb_seq_torch
+from ._references import get_reference
 from .._utils import _model_to_device, report_gpu
 
 def _get_oned_contribs(
