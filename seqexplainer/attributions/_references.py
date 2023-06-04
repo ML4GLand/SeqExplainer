@@ -1,8 +1,7 @@
 from typing import Callable, List, Tuple, Union
-
 import numpy as np
 from numpy.typing import NDArray
-from seqpro import k_shuffle
+from ..preprocess._preprocess import dinuc_shuffle_seqs
 
 
 def zero_ref_inputs(
@@ -112,7 +111,7 @@ def dinuc_shuffle_ref_inputs(
     ----
     This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
     """
-    refs = k_shuffle(inputs, **kwargs)
+    refs = kshuffle(inputs, **kwargs)
     return refs
 
 def gc_ref_inputs(

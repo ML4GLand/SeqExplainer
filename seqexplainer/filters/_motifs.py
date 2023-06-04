@@ -1,4 +1,6 @@
-from seqpro._helpers import _get_vocab
+from ..preprocess._helpers import _get_vocab
+import numpy as np
+TINY = np.finfo(float).tiny
 
 def pfm_to_df(
     pfm,

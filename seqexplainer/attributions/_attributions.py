@@ -1,7 +1,5 @@
 import gc
 from typing import Callable, Union
-
-
 import numpy as np
 import pandas as pd
 import torch
@@ -10,7 +8,7 @@ from tqdm.auto import tqdm
 
 from ..gia._perturb import perturb_seq_torch
 from ._references import get_reference
-from .._utils import _model_to_device, report_gpu
+from .._utils import _model_to_device, _report_gpu
 
 def _get_oned_contribs(
     one_hot,
@@ -234,4 +232,3 @@ def attribute(
 
     # Return attributions
     return attrs
-
