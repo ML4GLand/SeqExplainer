@@ -5,7 +5,52 @@ import gc
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 
+
+def _list_available_layers(
+    model: nn.Module,
+    key_word = None
+) -> list:
+    """List the available layers in a model
+    
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to list the layers of
+    key_word : str, optional
+        A key word to filter the layers by, by default None
+    
+    Returns
+    -------
+    list
+        A list of the available layers in the model
+    """
+    layers = sorted([k for k in dict([*model.named_modules()])])
+    if key_word is not None:
+        layers = [layer for layer in layers if key_word in layer]
+    return layers
+
+def _get_layer(
+    model: nn.Module,
+    layer_name: str
+) -> nn.Module:
+    """Get a layer from a model by name. Note that this will only work for
+    named modules. If the model has unnamed modules, TODO
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to get the layer from
+    layer_name : str
+        The name of the layer to get
+
+    Returns
+    -------
+    torch.nn.Module
+        The layer from the model
+    """
+    return dict([*model.named_modules()])[layer_name]
 
 def _model_to_device(
     model: torch.nn.Module,

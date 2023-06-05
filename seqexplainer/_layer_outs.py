@@ -31,57 +31,14 @@ class FeatureExtractor(nn.Module):
         preds = self.model(x, **kwargs)
         return self.features, self.handles, preds
     
-def list_available_layers(
-    model: nn.Module,
-    key_word = None
-) -> list:
-    """List the available layers in a model
-    
-    Parameters
-    ----------
-    model : torch.nn.Module
-        The model to list the layers of
-    key_word : str, optional
-        A key word to filter the layers by, by default None
-    
-    Returns
-    -------
-    list
-        A list of the available layers in the model
-    """
-    layers = sorted([k for k in dict([*model.named_modules()])])
-    if key_word is not None:
-        layers = [layer for layer in layers if key_word in layer]
-    return layers
-
-def get_layer(
-    model: nn.Module,
-    layer_name: str
-) -> nn.Module:
-    """Get a layer from a model by name. Note that this will only work for
-    named modules. If the model has unnamed modules, TODO
-
-    Parameters
-    ----------
-    model : torch.nn.Module
-        The model to get the layer from
-    layer_name : str
-        The name of the layer to get
-
-    Returns
-    -------
-    torch.nn.Module
-        The layer from the model
-    """
-    return dict([*model.named_modules()])[layer_name]
-    
 def get_layer_outputs(
-        model: nn.Module, 
-        inputs: torch.Tensor,
-        layer_name: str,
-        batch_size: int = 32,
-        device: str = "cpu"
-    ):
+    model: nn.Module, 
+    inputs: torch.Tensor,
+    layer_name: str,
+    batch_size: int = 32,
+    device: str = "cpu",
+    verbose=True
+):
     """Get the outputs of a layer in a model for a given input
 
     Parameters
@@ -118,6 +75,7 @@ def get_layer_outputs(
         enumerate(starts),
         total=len(starts),
         desc=f"Computing layer outputs for layer {layer_name} on batches of size {batch_size}",
+        disable=not verbose
     ):
         inputs_ = inputs[start : start + batch_size]
         inputs_ = inputs_.to(device)
