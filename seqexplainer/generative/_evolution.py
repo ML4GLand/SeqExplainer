@@ -1,13 +1,15 @@
 import torch
 import numpy as np
-from .._utils import _k_largest_index_argsort, _naive_ism
+from .._utils import _k_largest_index_argsort
+from .._ism import _naive_ism
+from .._utils import _model_to_device
 
 
 def best_k_muts(
     model: torch.nn.Module, 
     X: np.ndarray, 
     k: int = 1, 
-    device: str = None
+    device: str = "cpu"
 ) -> np.ndarray:
     """
     Find and return the k highest scoring sequence from referenece sequence X.
@@ -37,12 +39,21 @@ def best_k_muts(
     locs: np.ndarray
         The indeces along the length of the sequences where the mutations can be found
     """
-    model.eval().to(device)
+    
+    # Send model to device and put in eval mode 
+    _model_to_device(model, device)
+
+    # Need to expand dims if X is 2D
     X = np.expand_dims(X, axis=0) if X.ndim == 2 else X
-    X = X.transpose(0, 2, 1) if X.shape[2] == 4 else X
-    X = torch.Tensor(X).float().numpy()
+    #X = X.transpose(0, 2, 1) if X.shape[2] == 4 else X
+    
+    # Perform ISM on the input
+    X = torch.tensor(X, dtype=torch.float32, device=device)
     X_ism = _naive_ism(model, X, device=device, batch_size=1)
-    X_ism = X_ism.squeeze(axis=0)
+    X = X.detach().cpu().numpy()
+    X_ism = X_ism.squeeze(axis=0).detach().cpu().numpy()
+    
+    # Find the k highest scoring sequences
     inds = _k_largest_index_argsort(X_ism, k)
     locs = inds[:, 1]
     maxs = np.max(X_ism, axis=0)[locs]
@@ -93,8 +104,8 @@ def best_mut_seqs(
 
     """
     model.eval().to(device)
-    X = X.transpose(0, 2, 1) if X.shape[2] == 4 else X
-    X = torch.Tensor(X).float().numpy()
+    #X = X.transpose(0, 2, 1) if X.shape[2] == 4 else X
+    X = torch.tensor(X, dtype=torch.float32, device=device)
     X_ism = _naive_ism(model, X, device=device, batch_size=batch_size)
     maxs, inds, mut_X = [], [], X.copy()
     for i in range(len(mut_X)):
@@ -111,7 +122,6 @@ def evolution(
     rounds: int = 10,
     k: int = 10,
     force_different: bool = True,
-    batch_size: int = 128,
     device: str = "cpu",
 ) -> np.ndarray:
     """Perform rounds rounds of in-silico evolution on a single sequence X.
