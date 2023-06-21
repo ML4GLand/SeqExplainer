@@ -158,7 +158,7 @@ def embed_pattern_seqs(
     
     positions = np.array(positions)
     for i in range(len(positions)):
-        print(len(positions[i]))
+        #print(len(positions[i]))
         for j in range(len(positions[i])):
             if positions[i][j] < 0:
                 continue

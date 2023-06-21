@@ -10,9 +10,11 @@ def get_activators_n_seqlets(
     activations,
     sequences,
     kernel_size,
+    padding=0,
     num_seqlets = 100,
     num_filters=None
 ):
+    
     num_filters = num_filters if num_filters is not None else activations.shape[1]
     filter_activators = []
     for _, filter_num in tqdm(enumerate(range(num_filters)), desc=f"Getting filter activators for {num_filters} filters", total=num_filters,):
@@ -20,10 +22,17 @@ def get_activators_n_seqlets(
         inds = _k_largest_index_argsort(single_filter, num_seqlets)
         single_filter_activators = []
         for i, seq in enumerate(sequences[inds[:, 0]]):
-            pos = inds[i][1]
-            if pos + kernel_size > seq.shape[1]:
-                seq = np.pad(seq, ((0, 0), (0, pos + kernel_size - seq.shape[1])), constant_values=0)
-            activator = seq[:, inds[i][1] : inds[i][1] + kernel_size]
+            start = inds[i][1] - padding
+            end = inds[i][1] + kernel_size - padding
+            if end > seq.shape[1]:
+                pad_len = end - seq.shape[1]
+                seq = np.pad(seq, ((0, 0), (0, pad_len)), constant_values=0)
+            elif start < 0:
+                pad_len = -start
+                seq = np.pad(seq, ((0, 0), (pad_len, 0)), constant_values=0)
+                start = 0
+                end = end + pad_len
+            activator = seq[:, start:end]
             single_filter_activators.append(activator)
         filter_activators.append(single_filter_activators)
     return np.array(filter_activators)
@@ -32,6 +41,7 @@ def get_activators_max_seqlets(
     activations,
     sequences,
     kernel_size,
+    padding=0,
     activation_threshold = 0.5,
     num_filters=None
 ):
@@ -43,9 +53,17 @@ def get_activators_max_seqlets(
         single_filter_activators = []
         for i, pos in zip(inds[0], inds[1]):
             seq = sequences[i]
-            if pos + kernel_size > seq.shape[1]:
-                seq = np.pad(seq, ((0, 0), (0, pos + kernel_size - seq.shape[1])), constant_values=0)
-            activator = seq[:, pos:pos + kernel_size]
+            start = pos - padding
+            end = pos + kernel_size - padding
+            if end > seq.shape[1]:
+                pad_len = end - seq.shape[1]
+                seq = np.pad(seq, ((0, 0), (0, pad_len)), constant_values=0)
+            elif start < 0:
+                pad_len = -start
+                seq = np.pad(seq, ((0, 0), (pad_len, 0)), constant_values=0)
+                start = 0
+                end = end + pad_len
+            activator = seq[:, start:end]
             single_filter_activators.append(activator)
         filter_activators.append(single_filter_activators)
     return filter_activators
