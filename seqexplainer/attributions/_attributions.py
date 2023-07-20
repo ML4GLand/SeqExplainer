@@ -17,10 +17,11 @@ def _get_oned_contribs(
     oned_contr = contr.sum(axis=1)
     return oned_contr
 
-def _gradient_correction(
+def gradient_correction(
     grad: np.ndarray,
 ):
     grad -= np.mean(grad, axis=1, keepdims=True)
+    return grad
 
 
 ISM_REGISTRY = {
@@ -76,12 +77,13 @@ ATTRIBUTIONS_REGISTRY = {
 def attribute(
     model,
     inputs: torch.Tensor,
-    method: Union[str, Callable],
-    reference_type: str = None,
+    method: Union[str, Callable], 
+    references: Union[str, np.ndarray] = None,
     target: int = 0,
     batch_size: int = 128,
     device: str = "cpu",
     verbose: bool = True,
+    **kwargs
 ):
     # Disable cudnn for faster computations 
     torch.backends.cudnn.enabled = False
@@ -102,14 +104,19 @@ def attribute(
     ):
         # Grab the current batch
         inputs_ = inputs[start : start + batch_size]
-        inputs_ = inputs_.requires_grad_(True).to(device)
         
         # Add reference if needed
         kwargs = {}
-        if reference_type is not None:
-            refs = get_reference(inputs_, reference_type)
-            refs = torch.tensor(refs, dtype=torch.float32).requires_grad_(True).to(device)
+        if references is not None:
+            if isinstance(references, str):
+                refs = get_reference(inputs_, references)
+                refs = torch.tensor(refs, dtype=torch.float32).requires_grad_(True).to(device)
+            else:
+                refs = torch.tensor(references, dtype=torch.float32).requires_grad_(True).to(device)
             kwargs["baselines"] = refs
+
+        # Convert to tensor and put on device
+        inputs_ = torch.tensor(inputs_, dtype=torch.float32).requires_grad_(True).to(device)
 
         # Get attributions and append
         curr_attrs = ATTRIBUTIONS_REGISTRY[method](

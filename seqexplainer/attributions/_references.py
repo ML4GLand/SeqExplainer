@@ -2,6 +2,7 @@ from typing import Callable, List, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 from ..preprocess._preprocess import dinuc_shuffle_seqs
+import seqpro as sp
 
 
 def zero_ref_inputs(
@@ -111,13 +112,43 @@ def dinuc_shuffle_ref_inputs(
     ----
     This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
     """
-    refs = kshuffle(inputs, **kwargs)
+    refs = dinuc_shuffle_seqs(inputs)
+    return refs
+
+def k_shuffle_ref_inputs(
+    inputs: NDArray,
+    k: int = 2,
+    alphabet: str = "DNA",
+    **kwargs
+) -> NDArray:
+    """Return a NumPy array of dinucleotide shuffled inputs with the same shape as the inputs.
+
+    Inputs are expected to be one-hot encoded sequences with shape (N, A, L)
+    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
+    
+    Parameters
+    ----------
+    inputs : NDArray
+        The input sequences to be used to generate a set of dinucleotide shuffled reference sequences.
+    **kwargs
+        Additional keyword arguments to pass to the dinuc_shuffle_seqs function from the seqpro package.
+
+    Returns
+    -------
+    refs : NDArray
+        A NumPy array of dinucleotide shuffled sequences with the same shape as inputs.
+
+    Note
+    ----
+    This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
+    """
+    refs = sp.k_shuffle(inputs, k=k, alphabet=alphabet, **kwargs)
     return refs
 
 def gc_ref_inputs(
     inputs: NDArray,
     bg: str = "uniform",
-    uniform_dist: List[float] = [0.25, 0.25, 0.25, 0.25]
+    uniform_dist: List[float] = [0.3, 0.2, 0.3, 0.2]
 ) -> NDArray:
     """Return a NumPy array with the same GC content and shape as the inputs.
     
@@ -207,6 +238,7 @@ REFERENCE_REGISTRY = {
     "random": random_ref_inputs,
     "shuffle": shuffle_ref_inputs,
     "dinuc_shuffle": dinuc_shuffle_ref_inputs,
+    #TODO: "k_shuffle": k_shuffle_ref_inputs,
     "gc": gc_ref_inputs,
     "profile": profile_ref_inputs,
 }

@@ -1,5 +1,6 @@
 from ..preprocess._helpers import _get_vocab
 import numpy as np
+import pandas as pd
 TINY = np.finfo(float).tiny
 
 def pfm_to_df(

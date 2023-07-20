@@ -48,7 +48,19 @@ def _naive_ism(
     
     # Get the reference output
     _model_to_device(model, device)
-    reference = model.predict(inputs, batch_size=batch_size, verbose=False)[:, target].unsqueeze(dim=1).cpu()
+    ref_batch_starts = np.arange(0, N, batch_size)
+    reference = []
+    for start in ref_batch_starts:
+        inputs_ = inputs[start : start + batch_size]
+        with torch.no_grad():
+            reference_ = model(inputs_)[:, target].unsqueeze(dim=1).cpu()
+        reference.append(reference_)
+        del inputs_, reference_
+        if device[:4] == 'cuda':
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+    #reference = model.predict(inputs, batch_size=batch_size, verbose=False)[:, target].unsqueeze(dim=1).cpu()
+    reference = torch.cat(reference)
 
     # Get the batch starts
     batch_starts = np.arange(0, n, batch_size)
@@ -61,7 +73,7 @@ def _naive_ism(
         for start in batch_starts:
             X_ = X[start : start + batch_size]
             with torch.no_grad():
-                y_ = model.predict(X_, batch_size=batch_size, verbose=False)[:, target].unsqueeze(dim=1).cpu()
+                y_ = model(X_)[:, target].unsqueeze(dim=1).cpu()
             y.append(y_)
             del X_, y_
             if device[:4] == 'cuda':

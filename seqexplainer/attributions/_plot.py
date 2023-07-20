@@ -1,28 +1,16 @@
 #import tfomics
 import logomaker as lm
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib import colors
-from ._utils import _make_dirs
+from typing import Union, Optional
+from ..preprocess._helpers import _get_vocab
 
-def umap_plot(umap_data, umap1=0, umap2=1, color="b", loadings=None, labels=None, n=5):
-    xs = umap_data[:, umap1]
-    ys = umap_data[:, umap2]
-    scalex = 1.0 / (xs.max() - xs.min())
-    scaley = 1.0 / (ys.max() - ys.min())
-    ax = plt.scatter(xs * scalex, ys * scaley, c=color)
-    plt.xlim(-1, 1)
-    plt.ylim(-1, 1)
-    plt.xlabel("UMAP{}".format(1))
-    plt.ylabel("UMAP{}".format(2))
-    plt.show()
-    return ax
-    
 
 def plot_attribution_logo(
     attrs: np.ndarray,
+    inputs: Optional[np.ndarray] = None,
     vocab: str = "DNA",
     highlights: list = [],
     highlight_colors: list = ["lavenderblush", "lightcyan", "honeydew"],
@@ -32,9 +20,15 @@ def plot_attribution_logo(
     xlab: str = "Position",
     **kwargs
 ):
+
     vocab = _get_vocab(vocab)
     if attrs.shape[-1] != 4:
         attrs = attrs.T
+    
+    if inputs is not None:
+        if inputs.shape[-1] != 4:
+            inputs = inputs.T
+        attrs = attrs * inputs
     
     # Create Logo object
     df = pd.DataFrame(attrs, columns=vocab)
@@ -61,8 +55,10 @@ def plot_attribution_logo(
             color=highlight_colors[i]
         )
     
+
 def plot_attribution_logos(
     attrs: np.ndarray,
+    inputs: Optional[np.ndarray] = None,
     vocab: str = "DNA",
     height_scaler: float = 1.8,
     title: str ="",
@@ -76,9 +72,14 @@ def plot_attribution_logos(
     nrows = int(np.ceil(n_attrs / ncols))
     _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
     axes = axes.flatten()
+    if inputs is None:
+        inputs = [None] * n_attrs
+        
     for i in range(n_attrs):
+        print(inputs[i].shape)
         plot_attribution_logo(
             attrs[i],
+            inputs=inputs[i],
             vocab=vocab,
             height_scaler=height_scaler,
             title=title,
@@ -90,41 +91,52 @@ def plot_attribution_logos(
     plt.tight_layout()
     plt.show()
 
-def plot_filter_logo(
-    mtx,
-    mtx_type="counts",
-    vocab="DNA",
-    title=None
-):
-    df = pfm_to_df(mtx, vocab=vocab)
-    plot_df = lm.transform_matrix(df, from_type=mtx_type, to_type="information", pseudocount=1)    
-    logo = lm.Logo(plot_df)
-    logo.style_xticks(spacing=5, anchor=25, rotation=45, fmt="%d", fontsize=14)
-    logo.style_spines(visible=False)
-    logo.style_spines(spines=["left", "bottom"], visible=True, linewidth=2)
-    logo.ax.set_ylim([0, 2])
-    logo.ax.set_yticks([0, 1, 2])
-    logo.ax.set_yticklabels(["0", "1", "2"])
-    logo.ax.set_ylabel("bits")
-    logo.ax.set_title(title)
-    plt.show()
 
-def plot_filter_logos(
-    mtxs,
-    vocab="DNA",
-    mtx_type="counts",
-    title=None
+def plot_attribution_logo_heatmap(
+    attrs: np.ndarray,
+    inputs: Optional[np.ndarray] = None,
+    flip_sign: bool = False,    
+    vocab: str = "DNA",
+    figsize: tuple = (10, 3)
 ):
-    df_dict = pfms_to_df_dict(mtxs, vocab=vocab)
-    for _, df in df_dict.items():
-        plot_df = lm.transform_matrix(df, from_type=mtx_type, to_type="information", pseudocount=1)    
-        logo = lm.Logo(plot_df)
-        logo.style_xticks(spacing=5, anchor=25, rotation=45, fmt="%d", fontsize=14)
-        logo.style_spines(visible=False)
-        logo.style_spines(spines=["left", "bottom"], visible=True, linewidth=2)
-        logo.ax.set_ylim([0, 2])
-        logo.ax.set_yticks([0, 1, 2])
-        logo.ax.set_yticklabels(["0", "1", "2"])
-        logo.ax.set_ylabel("bits")
-        logo.ax.set_title(title)
-        plt.show()
+    
+    # Get the vocab
+    vocab = _get_vocab(vocab)
+
+    if flip_sign:
+        logo_attrs = -attrs
+    if inputs is not None:
+        logo_attrs = logo_attrs.sum(axis=0) * inputs
+    if logo_attrs.shape[-1] != 4:
+        logo_attrs = logo_attrs.T
+        
+    # Create fig and axes
+    fig, ax = plt.subplots(2, 1, figsize=figsize, sharex=True)
+    
+    # Create Logo object
+    
+    df = pd.DataFrame(logo_attrs, columns=vocab)
+    df.index.name = "pos"
+    y_max = np.max(float(np.max(df.values)), 0)
+    y_min = np.min(float(np.min(df.values)), 0)
+    nn_logo = lm.Logo(df, ax=ax[0])
+
+    # style using Logo methods
+    nn_logo.style_spines(visible=False)
+
+    # style using Axes methods
+    nn_logo.ax.set_xlim([0, len(df)])
+    nn_logo.ax.set_xticks([])
+    nn_logo.ax.set_ylim([y_min, y_max])
+    nn_logo.ax.set_yticks([])
+    nn_logo.ax.set_ylabel("Attribution")
+
+    # Create the heatmap
+    sns.heatmap(attrs, cmap='coolwarm', cbar=False, center=0, ax=ax[1])
+    ax[1].set_yticklabels(vocab, rotation=0)
+    ax[1].set_xticks([])
+
+    # Want to add a colorbar to the whole figure along the right side
+    fig.colorbar(ax[1].get_children()[0], ax=ax, location='right', use_gridspec=True, pad=0.05)
+    
+    plt.show()

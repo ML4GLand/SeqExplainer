@@ -350,3 +350,19 @@ def generate_seqs_from_generator(generator, num_seqs : int = 1, normal : bool = 
     z = z.to(device)
     fake = generator(z)
     return seqs_from_tensor(fake.cpu(), num_seqs)
+
+def umap_plot(umap_data, umap1=0, umap2=1, color="b", loadings=None, labels=None, n=5):
+    xs = umap_data[:, umap1]
+    ys = umap_data[:, umap2]
+    scalex = 1.0 / (xs.max() - xs.min())
+    scaley = 1.0 / (ys.max() - ys.min())
+    ax = plt.scatter(xs * scalex, ys * scaley, c=color)
+    plt.xlim(-1, 1)
+    plt.ylim(-1, 1)
+    plt.xlabel("UMAP{}".format(1))
+    plt.ylabel("UMAP{}".format(2))
+    plt.show()
+    return ax
+    
+
+
