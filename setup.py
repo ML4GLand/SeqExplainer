@@ -9,7 +9,7 @@ requirements = []
 
 setup(
     name="seqexplainer",
-    version="0.1.0",
+    version="0.1.2",
     author="Adam Klie",
     author_email="aklie@ucsd.edu",
     description="A tool for interpreting sequence input genomics PyTorch models",
