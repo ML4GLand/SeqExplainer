@@ -49,7 +49,7 @@ def _naive_ism(
     """
 
     # Get the number of sequences, choices, and sequence length
-    print("inputs:", inputs.shape, inputs.device)
+    #print("inputs:", inputs.shape, inputs.device)
     N, A, L = inputs.shape
     n = L * (A - 1)
     X_idxs = inputs.argmax(axis=1)
@@ -61,24 +61,24 @@ def _naive_ism(
     model.eval()
     reference = model(inputs)[:, target].unsqueeze(1).cpu()
     inputs = inputs.cpu()
-    print("reference:", reference.shape, reference.device)
-    print("inputs:", inputs.shape, inputs.device) 
+    #print("reference:", reference.shape, reference.device)
+    #print("inputs:", inputs.shape, inputs.device) 
 
     # Get the batch starts
     batch_starts = np.arange(0, n, batch_size)
-    print("batch_starts:", batch_starts[:5])
+    #print("batch_starts:", batch_starts[:5])
     report_gpu()
 
     # Get the change in output for each perturbation
     isms = []
     for i in range(N):
-        print("input:", inputs[i].shape, inputs[i].device)
+        #print("input:", inputs[i].shape, inputs[i].device)
         X = perturb_seq_torch(inputs[i]).cpu()
-        print("X:", X.shape, X.device)
+        #print("X:", X.shape, X.device)
         y = []
         for start in batch_starts:
             model.to(device)
-            print("model:", model.device)
+            #print("model:", model.device)
             X_ = X[start : start + batch_size]
             X_ = X_.to(device)
             with torch.no_grad():
@@ -87,24 +87,24 @@ def _naive_ism(
                 #print("y_:", y_.shape, y_.device)
             y.append(y_)
             del X_, y_
-            if device[:4] == 'cuda':
-                gc.collect()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                report_gpu()
+            #if device[:4] == 'cuda':
+            #    gc.collect()
+            #    torch.cuda.synchronize()
+            #    torch.cuda.empty_cache()
+            #    report_gpu()
             #print("model:", model.device)
         y = torch.cat(y)
-        print("y:", y.shape, y.device)
+        #print("y:", y.shape, y.device)
         ism = DIFF_REGISTRY[diff_type](y, reference[i]).cpu()
-        print("ism:", ism.shape, ism.device)
+        #print("ism:", ism.shape, ism.device)
         isms.append(ism)
-        print("inputs:", inputs.shape, inputs.device)
+        #print("inputs:", inputs.shape, inputs.device)
 
         
     
     # Clean up the output to be (N, A, L)
     isms = torch.stack(isms).cpu()
-    print("isms:", isms.shape, isms.device)
+    #print("isms:", isms.shape, isms.device)
 
     isms = isms.reshape(N, L, A - 1)
     j_idxs = torch.arange(N * L)

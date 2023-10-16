@@ -5,7 +5,7 @@ import pandas as pd
 from modiscolite.io import save_hdf5
 from modiscolite.tfmodisco import TFMoDISco
 from ._utils import _make_dirs, _path_to_image_html
-from modiscolite.report import run_tomtom, create_modisco_logos, report_motifs
+from modiscolite.report import generate_tomtom_dataframe, create_modisco_logos, report_motifs
 
 def _trim_cwm(
     cwm,
@@ -78,7 +78,7 @@ def modisco_tomtom(
 ):
     """Run TomTom on the motifs found by TFMoDISco."""
     _make_dirs(output_dir)
-    tomtom_df = run_tomtom(
+    tomtom_df = generate_tomtom_dataframe(
         modisco_h5py=modisco_h5_file,
         output_prefix=output_dir,
         meme_motif_db=meme_db_file,
