@@ -76,7 +76,6 @@ def plot_attribution_logos(
         inputs = [None] * n_attrs
         
     for i in range(n_attrs):
-        print(inputs[i].shape)
         plot_attribution_logo(
             attrs[i],
             inputs=inputs[i],
