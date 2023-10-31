@@ -1,52 +1,13 @@
-from ._utils import (
-    get_layer,
-    get_layer_outputs,
-    load_eugene_model
-)
-from ._references import (
-    get_reference
-)
-from ._filters import *
-from ._attributions import (
-    attribute,
-    attribution_pca,
-    attribution_umap
-)
-from ._modisco import (
-    modisco,
-    modisco_logos,
-    modisco_tomtom,
-    modisco_report,
-    modisco_load_report,
-    modisco_load_h5,
-    modisco_extract
-)
-from ._null_models import (
-    generate_profile_set,
-    generate_shuffled_set,
-    generate_dinucleotide_shuffled_set,
-    generate_subset_set
-)
-from ._perturb import (
-    perturb_seq,
-    perturb_seq_torch,
-    perturb_seqs,
-    perturb_seqs_torch,
-    embed_pattern_seq,
-    embed_pattern_seqs,
-    embed_patterns_seq,
-    embed_patterns_seqs,
-    tile_pattern_seq,
-    tile_pattern_seqs,
-    find_patterns_seq,
-    find_patterns_seqs,
-    occlude_patterns_seq,
-    occlude_patterns_seqs,
-)
-from ._gia import (
-    gc_bias_gia,
-    positional_bias_gia,
-    flanking_patterns_gia,
-    pattern_interaction_gia,
-    pattern_cooperativity_gia,
-)
+try:
+    import importlib.metadata as importlib_metadata
+except ModuleNotFoundError:
+    import importlib_metadata
+
+package_name = "seqexplainer"
+__version__ = importlib_metadata.version(package_name)
+
+
+from ._layer_outs import get_layer_outputs
+from .attributions import get_reference, attribute
+from .filters import get_activators_max_seqlets, get_activators_n_seqlets, get_pfms, plot_filter_logo, plot_filter_logos, annotate_pfms
+from .generative import evolution
