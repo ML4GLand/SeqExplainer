@@ -251,8 +251,8 @@ def embed_patterns_seqs(
         if len(positions[0]) != len(patterns[0]):
             raise ValueError("The number of patterns must match the number of positions in each list of positions.")                
 
-    positions = np.array(positions)
-    patterns = np.array(patterns)
+    #positions = np.array(positions)
+    #patterns = np.array(patterns)
     for i in range(len(positions)):
         for j in range(len(positions[i])):
             if positions[i][j] < 0:
