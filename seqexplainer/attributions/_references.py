@@ -1,8 +1,8 @@
 from typing import Callable, List, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
-from ..preprocess._preprocess import dinuc_shuffle_seqs
 import seqpro as sp
+from bpnetlite.attributions import create_references
 
 
 def zero_ref_inputs(
@@ -25,124 +25,6 @@ def zero_ref_inputs(
     """
     N, A, L = inputs.shape
     refs = np.zeros((N, A, L))
-    return refs
-
-def random_ref_inputs(
-    inputs: NDArray
-) -> NDArray:
-    """Return a NumPy array of random one-hot encoded sequences with the same shape as the inputs.
-
-    Inputs are expected to be one-hot encoded sequences with shape (N, A, L) 
-    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
-
-    Parameters
-    ----------
-    inputs : NDArray
-        The input sequences to be used to generate a random set of reference sequences.
-
-    Returns
-    -------
-    refs : NDArray
-        A NumpPy array of random one hot encoded sequences with the same shape as inputs.
-    """
-    N, A, L = inputs.shape
-    ref_tokens = np.random.randint(4, size=(N, L))
-    refs = np.eye(A)[ref_tokens]
-    return refs
-
-def shuffle_ref_inputs(
-    inputs: NDArray
-) -> NDArray:
-    """Return a NumPy array of shuffled inputs with the same shape as the inputs.
-
-    Inputs are expected to be one-hot encoded sequences with shape (N, A, L)
-    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
-    Each sequence will be shuffled independently along the last axis.
-    
-    Parameters
-    ----------
-    inputs : NDArray
-        The input sequences to be used to generate a set of shuffled reference sequences.
-    
-    Returns
-    -------
-    refs : 
-        A NumPy array of shuffled sequences with the same shape as inputs.
-    """
-    N, A, L = inputs.shape
-
-    # Generate a list of indices for shuffling along the last axis
-    shuffled_indices = np.arange(L)
-
-    # Shuffle the indices independently for each sequence
-    shuffled_indices = np.tile(shuffled_indices, (N, 1))
-    _ = np.apply_along_axis(np.random.shuffle, 1, shuffled_indices)
-
-    # Use numpy advanced indexing to shuffle the sequences
-    n_indices = np.arange(N)[:, None, None]
-    a_indices = np.arange(A)[None, :, None]
-    l_indices = shuffled_indices[:, None, :]
-
-    shuffled_sequences = inputs[n_indices, a_indices, l_indices]
-
-    return shuffled_sequences
-
-def dinuc_shuffle_ref_inputs(
-    inputs: NDArray,
-    **kwargs
-) -> NDArray:
-    """Return a NumPy array of dinucleotide shuffled inputs with the same shape as the inputs.
-
-    Inputs are expected to be one-hot encoded sequences with shape (N, A, L)
-    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
-    
-    Parameters
-    ----------
-    inputs : NDArray
-        The input sequences to be used to generate a set of dinucleotide shuffled reference sequences.
-    **kwargs
-        Additional keyword arguments to pass to the dinuc_shuffle_seqs function from the seqpro package.
-
-    Returns
-    -------
-    refs : NDArray
-        A NumPy array of dinucleotide shuffled sequences with the same shape as inputs.
-
-    Note
-    ----
-    This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
-    """
-    refs = dinuc_shuffle_seqs(inputs)
-    return refs
-
-def k_shuffle_ref_inputs(
-    inputs: NDArray,
-    k: int = 2,
-    alphabet: str = "DNA",
-    **kwargs
-) -> NDArray:
-    """Return a NumPy array of dinucleotide shuffled inputs with the same shape as the inputs.
-
-    Inputs are expected to be one-hot encoded sequences with shape (N, A, L)
-    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
-    
-    Parameters
-    ----------
-    inputs : NDArray
-        The input sequences to be used to generate a set of dinucleotide shuffled reference sequences.
-    **kwargs
-        Additional keyword arguments to pass to the dinuc_shuffle_seqs function from the seqpro package.
-
-    Returns
-    -------
-    refs : NDArray
-        A NumPy array of dinucleotide shuffled sequences with the same shape as inputs.
-
-    Note
-    ----
-    This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
-    """
-    refs = sp.k_shuffle(inputs, k=k, alphabet=alphabet, **kwargs)
     return refs
 
 def gc_ref_inputs(
@@ -194,8 +76,37 @@ def gc_ref_inputs(
         raise ValueError(f"Background distribution {bg} not in ['uniform', 'batch', 'seq']")
     return refs 
 
+def random_ref_inputs(
+    inputs: NDArray,
+    n_per_input: int = 1
+):
+    """Return a NumPy array of random one-hot encoded sequences with the same shape as the inputs.
+
+    Inputs are expected to be one-hot encoded sequences with shape (N, A, L) 
+    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
+
+    Parameters
+    ----------
+    inputs : NDArray
+        The input sequences to be used to generate a random set of reference sequences.
+
+    Returns
+    -------
+    refs : NDArray
+        A NumpPy array of random one hot encoded sequences with the same shape as inputs.
+    """
+    N, A, L = inputs.shape
+    if n_per_input == 1:
+        ref_tokens = np.random.randint(4, size=(N, L))
+        refs = np.eye(A)[ref_tokens].transpose(0, 2, 1)
+    else:
+        ref_tokens = np.random.randint(4, size=(N, n_per_input, L))
+        refs = np.eye(A)[ref_tokens].transpose(0, 1, 3, 2)
+    return refs
+
 def profile_ref_inputs(
-    inputs: NDArray
+    inputs: NDArray,
+    n_per_input: int = 1
 ) -> NDArray:
     """Return a NumPy array of nucleotide profile reference sequences with the same shape as the inputs.
 
@@ -217,30 +128,85 @@ def profile_ref_inputs(
     seq_model = np.mean(np.squeeze(inputs), axis=0)
     seq_model /= np.sum(seq_model, axis=0, keepdims=True)
 
-    refs = np.zeros((N, A, L))
-    for n in range(N):
+    if n_per_input == 1:
+        refs = np.zeros((N, A, L))
+        for n in range(N):
 
-        # generate uniform random number for each nucleotide in sequence
-        Z = np.random.uniform(0, 1, L)
+            # generate uniform random number for each nucleotide in sequence
+            Z = np.random.uniform(0, 1, L)
 
-        # calculate cumulative sum of the probabilities
-        cum_prob = seq_model.cumsum(axis=0)
+            # calculate cumulative sum of the probabilities
+            cum_prob = seq_model.cumsum(axis=0)
 
-        # find bin that matches random number for each position
-        for l in range(L):
-            index = [j for j in range(4) if Z[l] < cum_prob[j, l]][0]
-            refs[n, index, l] = 1
+            # find bin that matches random number for each position
+            for l in range(L):
+                index = [j for j in range(4) if Z[l] < cum_prob[j, l]][0]
+                refs[n, index, l] = 1
 
-    return refs 
+        return refs 
+    else:
+        refs = np.zeros((N, n_per_input, A, L))
+        for n in range(N):
+            for i in range(n_per_input):
+
+                # generate uniform random number for each nucleotide in sequence
+                Z = np.random.uniform(0, 1, L)
+
+                # calculate cumulative sum of the probabilities
+                cum_prob = seq_model.cumsum(axis=0)
+
+                # find bin that matches random number for each position
+                for l in range(L):
+                    index = [j for j in range(4) if Z[l] < cum_prob[j, l]][0]
+                    refs[n, i, index, l] = 1
+
+        return refs
+
+def k_shuffle_ref_inputs(
+    inputs: NDArray,
+    k: int = 2,
+    n_per_input: int = 1
+):
+    """Return a NumPy array of dinucleotide shuffled inputs with the same shape as the inputs.
+
+    Inputs are expected to be one-hot encoded sequences with shape (N, A, L)
+    where N is the number of sequences, A is the number of nucleotides, and L is the length of the sequences.
     
+    Parameters
+    ----------
+    inputs : NDArray
+        The input sequences to be used to generate a set of dinucleotide shuffled reference sequences.
+    **kwargs
+        Additional keyword arguments to pass to the dinuc_shuffle_seqs function from the seqpro package.
+
+    Returns
+    -------
+    refs : NDArray
+        A NumPy array of dinucleotide shuffled sequences with the same shape as inputs.
+
+    Note
+    ----
+    This function is a wrapper for the dinuc_shuffle_seqs function from the seqpro package and currently only works with numpy arrays.
+    """
+    if n_per_input == 1:
+        input_seqs = sp.decode_ohe(inputs.astype(np.uint8), alphabet=sp.alphabets.RNA, ohe_axis=1)
+        ref_seqs = sp.k_shuffle(input_seqs, k=k, length_axis=1)
+        refs = sp.ohe(ref_seqs, alphabet=sp.alphabets.RNA).transpose(0, 2, 1)
+    else:
+        refs = np.zeros((inputs.shape[0], n_per_input, inputs.shape[1], inputs.shape[2]))
+        for i in range(n_per_input):
+            input_seqs = sp.decode_ohe(inputs.astype(np.uint8), alphabet=sp.alphabets.RNA, ohe_axis=1)
+            ref_seqs = sp.k_shuffle(input_seqs, k=k, length_axis=1)
+            refs[:, i, :, :] = sp.ohe(ref_seqs, alphabet=sp.alphabets.RNA).transpose(0, 2, 1)
+    return refs
+
 REFERENCE_REGISTRY = {
     "zero": zero_ref_inputs,
-    "random": random_ref_inputs,
-    "shuffle": shuffle_ref_inputs,
-    "dinuc_shuffle": dinuc_shuffle_ref_inputs,
-    #TODO: "k_shuffle": k_shuffle_ref_inputs,
     "gc": gc_ref_inputs,
+    "random": random_ref_inputs,
     "profile": profile_ref_inputs,
+    "k_shuffle": k_shuffle_ref_inputs,
+    "bpnetlite": create_references,
 }
 
 def get_reference(

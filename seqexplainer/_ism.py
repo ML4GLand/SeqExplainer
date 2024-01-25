@@ -5,6 +5,7 @@ from tqdm.auto import tqdm
 from .gia._perturb import perturb_seq_torch
 from ._utils import _model_to_device
 
+
 # Reference vs output difference methods
 def delta(y, reference):
     """Difference between output and reference"""
@@ -59,7 +60,6 @@ def _naive_ism(
         if device[:4] == 'cuda':
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
-    #reference = model.predict(inputs, batch_size=batch_size, verbose=False)[:, target].unsqueeze(dim=1).cpu()
     reference = torch.cat(reference)
 
     # Get the batch starts

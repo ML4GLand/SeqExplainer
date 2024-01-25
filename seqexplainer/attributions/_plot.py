@@ -4,14 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-from typing import Union, Optional
-from ..preprocess._helpers import _get_vocab
+from typing import Union, Optional, List
 
 
 def plot_attribution_logo(
     attrs: np.ndarray,
-    inputs: Optional[np.ndarray] = None,
-    vocab: str = "DNA",
+    vocab: Union[str, List] = "ACGT",
     highlights: list = [],
     highlight_colors: list = ["lavenderblush", "lightcyan", "honeydew"],
     height_scaler: float = 1.8,
@@ -20,18 +18,14 @@ def plot_attribution_logo(
     xlab: str = "Position",
     **kwargs
 ):
+    if isinstance(vocab, str):
+        vocab = [c for c in vocab]
+    if attrs.shape[-1] != len(vocab):
+        assert attrs.shape[0] == len(vocab), "attrs must be (L, A) or (A, L)"
+        logo_attrs = attrs.T.copy()
 
-    vocab = _get_vocab(vocab)
-    if attrs.shape[-1] != 4:
-        attrs = attrs.T
-    
-    if inputs is not None:
-        if inputs.shape[-1] != 4:
-            inputs = inputs.T
-        attrs = attrs * inputs
-    
     # Create Logo object
-    df = pd.DataFrame(attrs, columns=vocab)
+    df = pd.DataFrame(logo_attrs, columns=vocab)
     df.index.name = "pos"
     y_max = np.max(float(np.max(df.values)) * height_scaler, 0)
     y_min = np.min(float(np.min(df.values)) * height_scaler, 0)
@@ -54,60 +48,25 @@ def plot_attribution_logo(
             pmax=highlight[1], 
             color=highlight_colors[i]
         )
-    
-
-def plot_attribution_logos(
-    attrs: np.ndarray,
-    inputs: Optional[np.ndarray] = None,
-    vocab: str = "DNA",
-    height_scaler: float = 1.8,
-    title: str ="",
-    ylab: str = "Attribution",
-    xlab: str = "Position",
-    figsize: tuple = (10, 10),
-    ncols: int = 1,
-    **kwargs
-):
-    n_attrs = attrs.shape[0]
-    nrows = int(np.ceil(n_attrs / ncols))
-    _, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
-    axes = axes.flatten()
-    if inputs is None:
-        inputs = [None] * n_attrs
-        
-    for i in range(n_attrs):
-        plot_attribution_logo(
-            attrs[i],
-            inputs=inputs[i],
-            vocab=vocab,
-            height_scaler=height_scaler,
-            title=title,
-            ylab=ylab,
-            xlab=xlab,
-            ax=axes[i],
-            **kwargs
-        )
-    plt.tight_layout()
-    plt.show()
-
 
 def plot_attribution_logo_heatmap(
     attrs: np.ndarray,
     inputs: Optional[np.ndarray] = None,
     flip_sign: bool = False,    
-    vocab: str = "DNA",
+    vocab: Union[str, List] = "ACGT",
     figsize: tuple = (10, 3)
 ):
     
     # Get the vocab
-    vocab = _get_vocab(vocab)
+    if isinstance(vocab, str):
+        vocab = [c for c in vocab]
 
-    if flip_sign:
-        logo_attrs = -attrs
-    if inputs is not None:
-        logo_attrs = logo_attrs.sum(axis=0) * inputs
-    if logo_attrs.shape[-1] != 4:
-        logo_attrs = logo_attrs.T
+    #
+    logo_attrs = -attrs if flip_sign else attrs
+    logo_attrs = logo_attrs.sum(axis=0) * inputs if inputs is not None else logo_attrs
+    if logo_attrs.shape[-1] != len(vocab):
+        assert logo_attrs.shape[0] == len(vocab), "attrs must be (L, A) or (A, L)"
+        logo_attrs = logo_attrs.T.copy()
         
     # Create fig and axes
     fig, ax = plt.subplots(2, 1, figsize=figsize, sharex=True)
